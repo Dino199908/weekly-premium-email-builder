@@ -1,0 +1,61 @@
+{
+  "name": "weekly-premium-email-builder",
+  "version": "1.0.19",
+  "description": "Windows desktop app for building weekly Premium partnership emails.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prebuild": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-build.ps1",
+    "build": "electron-builder --win --x64 --publish never",
+    "postbuild": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/post-build.ps1",
+    "prebuild:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-build.ps1",
+    "build:portable": "electron-builder --win portable --x64 --publish never",
+    "postbuild:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/post-build.ps1",
+    "release": "electron-builder --win nsis --x64 --publish always"
+  },
+  "build": {
+    "appId": "com.weeklyemail.premiumbuilder",
+    "productName": "Weekly Premium Email Builder",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Dino199908",
+        "repo": "weekly-premium-email-builder"
+      }
+    ],
+    "files": [
+      "app.js",
+      "index.html",
+      "main.cjs",
+      "preload.cjs",
+      "styles.css",
+      "assets/**/*",
+      "vendor/**/*",
+      "README.md",
+      "sample_data.csv"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^36.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "electron-updater": "^6.8.3",
+    "tesseract.js": "^5.1.1",
+    "xlsx": "^0.18.5"
+  }
+}
