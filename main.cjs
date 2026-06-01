@@ -116,11 +116,17 @@ function registerIpcHandlers() {
 
   ipcMain.handle("open-email-draft", async (event, options = {}) => {
     const to = String(options.to || "").trim();
+    const cc = String(options.cc || "").trim();
     const subject = String(options.subject || "").trim();
     const body = String(options.body || "").trim();
     if (!to) return { ok: false, error: "No manager email address is saved for this store." };
 
-    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const query = [
+      cc ? `cc=${encodeURIComponent(cc)}` : "",
+      `subject=${encodeURIComponent(subject)}`,
+      `body=${encodeURIComponent(body)}`
+    ].filter(Boolean).join("&");
+    const mailto = `mailto:${encodeURIComponent(to)}?${query}`;
     await shell.openExternal(mailto);
     return { ok: true };
   });

@@ -1,5 +1,6 @@
 const STORAGE_KEY = "premiumWeeklyEmailBuilder.v1";
 const STORE_MAPPING_KEY = "premiumWeeklyEmailBuilder.storeMappings.v1";
+const DEFAULT_CC_EMAIL = "KHartley@premiumretail.com";
 const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1)
 };
@@ -944,17 +945,17 @@ async function sendActiveEmail() {
   const body = store.polishedEmail || buildEmail(store);
 
   if (window.weeklyEmailApp?.openEmailDraft) {
-    const result = await window.weeklyEmailApp.openEmailDraft({ to: email, subject, body });
+    const result = await window.weeklyEmailApp.openEmailDraft({ to: email, cc: DEFAULT_CC_EMAIL, subject, body });
     if (!result?.ok) {
       showImportError(result?.error || "Windows could not open an email draft. Check your default mail app.");
       return;
     }
-    elements.statusText.textContent = `Email draft opened for ${email}.`;
+    elements.statusText.textContent = `Email draft opened for ${email} with ${DEFAULT_CC_EMAIL} copied.`;
     return;
   }
 
-  window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  elements.statusText.textContent = `Email draft opened for ${email}.`;
+  window.location.href = `mailto:${encodeURIComponent(email)}?cc=${encodeURIComponent(DEFAULT_CC_EMAIL)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  elements.statusText.textContent = `Email draft opened for ${email} with ${DEFAULT_CC_EMAIL} copied.`;
 }
 
 async function saveActiveEmail() {
