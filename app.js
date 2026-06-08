@@ -8,7 +8,7 @@ const defaultSettings = {
 const metricDefaults = [
   { name: "Postpaid Activation", mtd: 14, goal: 41, format: "number" },
   { name: "Prepaid Sales", mtd: 30, goal: 60, format: "number" },
-  { name: "Prepaid Activation", mtd: 12, goal: 25, format: "percent" },
+  { name: "Prepaid Activation", mtd: 12, goal: 25, format: "number" },
   { name: "Device Protection", mtd: 6.67, goal: 10, format: "percent" },
   { name: "Accessory Sales", mtd: 2431, goal: 8000, format: "currency" }
 ];
@@ -45,7 +45,7 @@ const reportMetricKeys = [
 const emailMetricColumns = [
   { defaultIndex: 0, sourceKeys: ["postpaidactivation", "postacts"] },
   { defaultIndex: 1, sourceKeys: ["prepaidsales", "preunits", "preunitspspd"], multiplyDailyPace: true },
-  { defaultIndex: 2, sourceKeys: ["prepaidactivation", "preactrate"] },
+  { defaultIndex: 2, sourceKeys: ["preactspspd", "prepaidactivation", "preacts"], multiplyDailyPace: true },
   { defaultIndex: 3, sourceKeys: ["deviceprotection", "totalprotectrate"] },
   { defaultIndex: 4, sourceKeys: ["accessorysales", "accpspd"] }
 ];
@@ -200,12 +200,27 @@ function loadState() {
 }
 
 function normalizeLoadedState(value) {
+  const stores = Array.isArray(value.stores) && value.stores.length ? value.stores : structuredClone(sampleStores);
   return {
     ...value,
-    stores: Array.isArray(value.stores) && value.stores.length ? value.stores : structuredClone(sampleStores),
+    stores: stores.map(normalizeSavedStore),
     settings: { ...defaultSettings, ...(value.settings || {}) },
     lastImportReview: Array.isArray(value.lastImportReview) ? value.lastImportReview : []
   };
+}
+
+function normalizeSavedStore(store) {
+  return {
+    ...store,
+    metrics: normalizeMetricFormats(store.metrics)
+  };
+}
+
+function normalizeMetricFormats(metrics) {
+  const safeMetrics = Array.isArray(metrics) && metrics.length ? metrics : metricDefaults.map((metric) => ({ ...metric, mtd: 0 }));
+  return safeMetrics.map((metric) => metric.name === "Prepaid Activation"
+    ? { ...metric, format: "number" }
+    : metric);
 }
 
 function loadStoreMappings() {
@@ -473,6 +488,13 @@ function findPreviousStore(store, stores) {
 function mergeMetricGoals(metrics, previousMetrics) {
   return metrics.map((metric) => {
     const previous = previousMetrics.find((item) => item.name === metric.name);
+    if (metric.name === "Prepaid Activation") {
+      return {
+        ...metric,
+        goal: previous?.goal ?? metric.goal,
+        format: "number"
+      };
+    }
     return previous
       ? { ...metric, goal: previous.goal, format: previous.format || metric.format }
       : metric;
@@ -1716,13 +1738,13 @@ function parseOcrStoreLine(line) {
   if (!hasFullReportRow) {
     const labeledPostpaid = labeledNumberValue(storeMatch[2], /(?:postpaid\s+activation|post\s+acts?)/i);
     const labeledPreUnits = labeledNumberValue(storeMatch[2], /pre\s*units(?:\s*pspd)?/i);
-    const labeledPrepaidActivation = labeledNumberValue(storeMatch[2], /(?:prepaid\s+activation|pre\s*act\s*rate)/i);
+    const labeledPrepaidActivation = labeledNumberValue(storeMatch[2], /(?:prepaid\s+activation|pre\s*acts?(?:\s*pspd)?)/i);
     const labeledProtection = labeledNumberValue(storeMatch[2], /(?:device\s+protection|total\s+protect\s+rate)/i);
     const labeledAccessory = labeledNumberValue(storeMatch[2], /(?:accessory\s+sales|acc(?:essory)?\s*pspd)/i);
 
     if (labeledPostpaid !== "") record.postacts = labeledPostpaid;
     if (labeledPreUnits !== "") record.preunitspspd = labeledPreUnits;
-    if (labeledPrepaidActivation !== "") record.preactrate = labeledPrepaidActivation;
+    if (labeledPrepaidActivation !== "") record.preactspspd = labeledPrepaidActivation;
     if (labeledProtection !== "") record.totalprotectrate = labeledProtection;
     if (labeledAccessory !== "") record.accpspd = labeledAccessory;
   }
@@ -1771,7 +1793,18 @@ function metricMtdFromRecord(record, metricName, sourceKeys) {
       : roundMetricValue(parseMetricNumber(accessoryPspd) * mtdPaceMultiplier());
   }
 
-  if (metricName === "Prepaid Activation" || metricName === "Device Protection") {
+  if (metricName === "Prepaid Activation") {
+    const preActsPspd = firstRecordValue(record, ["preactspspd"]);
+    const preActsValue = parseMetricNumber(preActsPspd);
+    if (preActsPspd !== "" && preActsValue <= 25) {
+      return Math.round(preActsValue * mtdPaceMultiplier());
+    }
+
+    const rawPreActs = firstRecordValue(record, ["prepaidactivation", "preacts"]);
+    return rawPreActs === "" ? 0 : parseMetricNumber(rawPreActs);
+  }
+
+  if (metricName === "Device Protection") {
     return rateMetricFromRecord(record, sourceKeys);
   }
 
@@ -1806,7 +1839,7 @@ function normalizeStore(store) {
     visits: Array.isArray(store.visits) ? store.visits : [],
     importantNotes: store.importantNotes || "",
     helpNotes: store.helpNotes || "",
-    metrics: Array.isArray(store.metrics) && store.metrics.length ? store.metrics : metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
+    metrics: normalizeMetricFormats(store.metrics)
   });
 }
 
