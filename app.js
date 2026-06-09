@@ -119,6 +119,10 @@ const elements = {
   weekEnd: document.querySelector("#weekEnd"),
   importantNotes: document.querySelector("#importantNotes"),
   helpNotes: document.querySelector("#helpNotes"),
+  staffingNotes: document.querySelector("#staffingNotes"),
+  hoursNotes: document.querySelector("#hoursNotes"),
+  openItems: document.querySelector("#openItems"),
+  featuredDeals: document.querySelector("#featuredDeals"),
   visitsList: document.querySelector("#visitsList"),
   metricsList: document.querySelector("#metricsList"),
   emailPreview: document.querySelector("#emailPreview"),
@@ -212,6 +216,10 @@ function normalizeLoadedState(value) {
 function normalizeSavedStore(store) {
   return {
     ...store,
+    staffingNotes: store.staffingNotes || "",
+    hoursNotes: store.hoursNotes || "",
+    openItems: store.openItems || "",
+    featuredDeals: store.featuredDeals || "",
     metrics: normalizeMetricFormats(store.metrics)
   };
 }
@@ -529,6 +537,10 @@ function renderForm() {
   elements.weekEnd.value = store.weekEnd || "";
   elements.importantNotes.value = store.importantNotes || "";
   elements.helpNotes.value = store.helpNotes || "";
+  elements.staffingNotes.value = store.staffingNotes || "";
+  elements.hoursNotes.value = store.hoursNotes || "";
+  elements.openItems.value = store.openItems || "";
+  elements.featuredDeals.value = store.featuredDeals || "";
 
   elements.visitsList.innerHTML = "";
   store.visits.forEach((visit, index) => elements.visitsList.appendChild(createVisitRow(visit, index)));
@@ -605,6 +617,10 @@ function updateActiveStoreFromForm() {
   store.weekEnd = elements.weekEnd.value;
   store.importantNotes = elements.importantNotes.value;
   store.helpNotes = elements.helpNotes.value;
+  store.staffingNotes = elements.staffingNotes.value;
+  store.hoursNotes = elements.hoursNotes.value;
+  store.openItems = elements.openItems.value;
+  store.featuredDeals = elements.featuredDeals.value;
   store.polishedEmail = "";
 }
 
@@ -638,6 +654,10 @@ function addStore() {
     visits: [],
     importantNotes: "",
     helpNotes: "",
+    staffingNotes: "",
+    hoursNotes: "",
+    openItems: "",
+    featuredDeals: "",
     metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
   };
   state.stores.push(store);
@@ -721,12 +741,15 @@ function buildEmail(store) {
     .filter((metric) => Number(metric.goal || 0) > 0)
     .map((metric) => `${metric.name}: ${formatValue(metric.goal, metric.format)}`)
     .join("\n");
+  const optionalSections = buildOptionalEmailSections(store);
 
   return `Good morning ${store.contactName || "there"},
 
 Here is your weekly Premium partnership update! First, let's start with who you can expect to see in your store for the next couple of weeks:
 
 ${visits}
+
+${optionalSections}
 
 Important Notes
 
@@ -763,14 +786,19 @@ function buildPolishedEmail(store) {
   const progressLines = buildProgressLines(store);
   const mtdLines = buildMtdLines(store);
   const goalLines = buildGoalLines(store);
+  const optionalSections = buildOptionalEmailSections(store);
 
   return `Good morning ${store.contactName || "there"},
 
-Here is your weekly Premium partnership update. First, here is who you can expect to see in your store over the next couple of weeks:
+Here is your weekly Premium partnership update. Communication is a big part of being a strong partner, so I want to keep you updated on staffing, coverage, store results, and where we could use support.
+
+Here is who you can expect to see in your store over the next couple of weeks:
 
 ${visits}
 
-Important Notes
+${optionalSections}
+
+Results Update
 
 ${summary}
 
@@ -790,7 +818,26 @@ ${mtdLines}
 
 Month Goals:
 
-${goalLines || "No month goals entered yet."}`;
+${goalLines || "No month goals entered yet."}
+
+Please pass this update along to your management team as needed. As always, reach out any time with questions, concerns, store needs, or customer issues. I appreciate the partnership and look forward to continuing to help drive the store's success.`;
+}
+
+function buildOptionalEmailSections(store) {
+  const sections = [
+    ["Staffing Update", store.staffingNotes],
+    ["Location Tier Hours", store.hoursNotes],
+    ["Featured Device Deals", store.featuredDeals],
+    ["Open Items / Assistance Requested", store.openItems]
+  ];
+
+  return sections
+    .map(([title, body]) => {
+      const text = cleanMultiline(body);
+      return text ? `${title}\n\n${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function buildPolishedSummary(store) {
@@ -900,6 +947,14 @@ function addMetricSentence(parts, metrics, name, label) {
 
 function cleanSentence(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanMultiline(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function calculateProgress(metric) {
@@ -1065,6 +1120,10 @@ function backupSettings() {
     storeGoals: state.stores.map((store) => ({
       storeNumber: store.storeNumber || "",
       storeName: store.storeName || "",
+      staffingNotes: store.staffingNotes || "",
+      hoursNotes: store.hoursNotes || "",
+      openItems: store.openItems || "",
+      featuredDeals: store.featuredDeals || "",
       metrics: (store.metrics || []).map((metric) => ({
         name: metric.name,
         goal: metric.goal,
@@ -1554,6 +1613,10 @@ function normalizeCsvImport(text) {
         visits: [],
         importantNotes: record.importantnotes || "",
         helpNotes: record.helpnotes || "",
+        staffingNotes: record.staffingnotes || record.staffing || "",
+        hoursNotes: record.hoursnotes || record.locationhours || record.hours || "",
+        openItems: record.openitems || record.assistancerequested || "",
+        featuredDeals: record.featureddeals || record.devicedeals || record.deals || "",
         metrics: []
       }));
     }
@@ -1593,6 +1656,10 @@ function normalizePerformanceReport(rows, headers) {
         visits: [],
         importantNotes: buildReportNote(record, benchmark),
         helpNotes: buildHelpNote(record, benchmark),
+        staffingNotes: "",
+        hoursNotes: "",
+        openItems: "",
+        featuredDeals: "",
         metrics
       });
     });
@@ -1623,6 +1690,10 @@ function normalizeOcrReport(text) {
       visits: [],
       importantNotes: buildReportNote(record, benchmark),
       helpNotes: buildHelpNote(record, benchmark),
+      staffingNotes: "",
+      hoursNotes: "",
+      openItems: "",
+      featuredDeals: "",
       metrics: performanceMetricsFromRecord(record)
     }));
 
@@ -1645,6 +1716,10 @@ function ensureExpectedStores(imported) {
       visits: [],
       importantNotes: `The screenshot did not include a readable row for Store ${storeNumber}. Please review this store's numbers before sending.`,
       helpNotes: "Please review the month-to-date numbers for this store and update any unread values before sending.",
+      staffingNotes: "",
+      hoursNotes: "",
+      openItems: "",
+      featuredDeals: "",
       metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
     }));
     existingNumbers.add(storeNumber);
@@ -1839,6 +1914,10 @@ function normalizeStore(store) {
     visits: Array.isArray(store.visits) ? store.visits : [],
     importantNotes: store.importantNotes || "",
     helpNotes: store.helpNotes || "",
+    staffingNotes: store.staffingNotes || "",
+    hoursNotes: store.hoursNotes || "",
+    openItems: store.openItems || "",
+    featuredDeals: store.featuredDeals || "",
     metrics: normalizeMetricFormats(store.metrics)
   });
 }
