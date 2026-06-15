@@ -6,6 +6,17 @@ Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. E
 
 GitHub Releases auto-update setup is documented in `AUTO_UPDATE.md`.
 
+## Codex Thread Reader
+
+Use this local helper when another Codex thread has useful context:
+
+```powershell
+npm run read-thread -- --list "Portal"
+npm run read-thread -- --thread "Portal Updates" --query "tier hours" --context 2
+```
+
+Add `--include-tools` when the answer is likely inside command output.
+
 ## Windows app
 
 Install dependencies once:

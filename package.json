@@ -5,6 +5,7 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
+    "read-thread": "node scripts/read-thread.cjs",
     "prebuild": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-build.ps1",
     "build": "electron-builder --win --x64 --publish never",
     "postbuild": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/post-build.ps1",
