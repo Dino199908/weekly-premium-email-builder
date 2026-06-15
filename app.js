@@ -470,7 +470,13 @@ function finalizeImportedState(imported, previousState) {
     const merged = {
       ...store,
       managerEmail: store.managerEmail || previous?.managerEmail || "",
+      weekStart: store.weekStart || previous?.weekStart || "",
+      weekEnd: store.weekEnd || previous?.weekEnd || "",
       visits: Array.isArray(previous?.visits) && previous.visits.length ? previous.visits : store.visits,
+      staffingNotes: store.staffingNotes || previous?.staffingNotes || "",
+      hoursNotes: store.hoursNotes || previous?.hoursNotes || "",
+      openItems: store.openItems || previous?.openItems || "",
+      featuredDeals: store.featuredDeals || previous?.featuredDeals || "",
       metrics: mergeMetricGoals(store.metrics || [], previous?.metrics || [])
     };
     return applyMappingToStore(merged);
@@ -528,6 +534,9 @@ function renderTabs() {
 function renderForm() {
   const store = getActiveStore();
   if (!store) return;
+  if (shouldAutoFillVisitDates(store)) {
+    syncVisitsToWeekRange(store);
+  }
 
   elements.storeName.value = store.storeName || "";
   elements.storeNumber.value = store.storeNumber || "";
@@ -608,6 +617,8 @@ function renderPreview() {
 function updateActiveStoreFromForm() {
   const store = getActiveStore();
   if (!store) return;
+  const previousWeekStart = store.weekStart;
+  const previousWeekEnd = store.weekEnd;
 
   store.storeName = elements.storeName.value;
   store.storeNumber = elements.storeNumber.value;
@@ -621,6 +632,9 @@ function updateActiveStoreFromForm() {
   store.hoursNotes = elements.hoursNotes.value;
   store.openItems = elements.openItems.value;
   store.featuredDeals = elements.featuredDeals.value;
+  if (store.weekStart !== previousWeekStart || store.weekEnd !== previousWeekEnd) {
+    syncVisitsToWeekRange(store);
+  }
   store.polishedEmail = "";
 }
 
@@ -686,7 +700,8 @@ function deleteActiveStore() {
 }
 
 function addVisit() {
-  getActiveStore().visits.push({ date: "", person: "" });
+  const store = getActiveStore();
+  store.visits.push({ date: nextVisitDate(store), person: "" });
   saveAndRender();
 }
 
@@ -949,6 +964,62 @@ function cleanSentence(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function syncVisitsToWeekRange(store) {
+  const dates = datesBetween(store.weekStart, store.weekEnd);
+  if (!dates.length) return;
+
+  const existingVisits = Array.isArray(store.visits) ? store.visits : [];
+  const peopleByDate = new Map(existingVisits
+    .filter((visit) => visit.date)
+    .map((visit) => [visit.date, visit.person || ""]));
+
+  store.visits = dates.map((date, index) => ({
+    date,
+    person: peopleByDate.get(date) ?? existingVisits[index]?.person ?? ""
+  }));
+}
+
+function shouldAutoFillVisitDates(store) {
+  const dates = datesBetween(store.weekStart, store.weekEnd);
+  const visits = Array.isArray(store.visits) ? store.visits : [];
+  return Boolean(dates.length) && (!visits.length || visits.every((visit) => !visit.date));
+}
+
+function nextVisitDate(store) {
+  const dates = datesBetween(store.weekStart, store.weekEnd);
+  if (!dates.length) return "";
+
+  const usedDates = new Set((store.visits || []).map((visit) => visit.date).filter(Boolean));
+  return dates.find((date) => !usedDates.has(date)) || dates[dates.length - 1] || "";
+}
+
+function datesBetween(startValue, endValue) {
+  const start = parseDateInput(startValue);
+  const end = parseDateInput(endValue);
+  if (!start || !end || end < start) return [];
+
+  const dates = [];
+  const cursor = new Date(start);
+  while (cursor <= end && dates.length < 31) {
+    dates.push(toDateInputValue(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+function parseDateInput(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function toDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function cleanMultiline(value) {
   return String(value || "")
     .split(/\r?\n/)
@@ -1169,6 +1240,10 @@ function restoreStoreGoals(storeGoals) {
       (saved.storeName && item.storeName === saved.storeName)
     );
     if (!store) return;
+    store.staffingNotes = saved.staffingNotes || store.staffingNotes || "";
+    store.hoursNotes = saved.hoursNotes || store.hoursNotes || "";
+    store.openItems = saved.openItems || store.openItems || "";
+    store.featuredDeals = saved.featuredDeals || store.featuredDeals || "";
     store.metrics = mergeMetricGoals(store.metrics || [], saved.metrics || []);
   });
 }
@@ -1194,6 +1269,7 @@ function slugify(value) {
 async function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
+  let importKind = "file";
 
   try {
     syncStoreMappingsFromForm();
@@ -1201,22 +1277,32 @@ async function importData(event) {
 
     if (file.type.startsWith("image/")) {
       state = await importImageAndPolish(file);
+      importKind = "screenshot";
     } else {
       const fileName = file.name.toLowerCase();
       if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         state = finalizeImportedState(await normalizeWorkbookImport(file), state);
+        importKind = "Excel file";
       } else {
         const text = await file.text();
         if (fileName.endsWith(".json")) {
           state = finalizeImportedState(normalizeJsonImport(JSON.parse(text)), state);
+          importKind = "settings file";
         } else {
           state = finalizeImportedState(normalizeTextReportImport(text), state);
+          importKind = "report rows";
         }
       }
     }
 
     activeStoreId = state.stores[0]?.id;
+    polishAllStores();
     saveAndRender();
+    if (importKind === "Excel file") {
+      setReportPreview(`${file.name} loaded.\n${state.stores.length} store${state.stores.length === 1 ? "" : "s"} imported from Excel.`);
+    }
+    elements.ocrStatus.textContent = `${importKind} loaded: ${state.stores.length} store${state.stores.length === 1 ? "" : "s"} imported.`;
+    elements.writerStatus.textContent = `Smart Writer drafted ${state.stores.length} store email${state.stores.length === 1 ? "" : "s"}.`;
   } catch (error) {
     showImportError(error);
   }
@@ -1839,14 +1925,12 @@ function performanceMetricsFromRecord(record) {
 
 function metricMtdFromRecord(record, metricName, sourceKeys) {
   if (metricName === "Prepaid Sales") {
-    const rawSales = firstRecordValue(record, ["prepaidsales", "preunits"]);
-    if (rawSales !== "") return parseMetricNumber(rawSales);
-
-    const preUnitsPspd = firstRecordValue(record, ["preunitspspd"]);
-    const preUnitsValue = parseMetricNumber(preUnitsPspd);
-    return preUnitsPspd === "" || preUnitsValue > 25
-      ? 0
-      : roundMetricValue(preUnitsValue * mtdPaceMultiplier());
+    return pacedMetricFromRecord(record, {
+      rawKeys: ["prepaidsales", "preunits"],
+      pspdKeys: ["preunitspspd"],
+      maxPspd: 25,
+      round: roundMetricValue
+    });
   }
 
   if (metricName === "Postpaid Activation") {
@@ -1859,24 +1943,20 @@ function metricMtdFromRecord(record, metricName, sourceKeys) {
   }
 
   if (metricName === "Accessory Sales") {
-    const rawAccessorySales = firstRecordValue(record, ["accessorysales"]);
-    if (rawAccessorySales !== "") return parseMetricNumber(rawAccessorySales);
-
-    const accessoryPspd = firstRecordValue(record, ["accpspd"]);
-    return accessoryPspd === ""
-      ? 0
-      : roundMetricValue(parseMetricNumber(accessoryPspd) * mtdPaceMultiplier());
+    return pacedMetricFromRecord(record, {
+      rawKeys: ["accessorysales"],
+      pspdKeys: ["accpspd"],
+      round: roundMetricValue
+    });
   }
 
   if (metricName === "Prepaid Activation") {
-    const preActsPspd = firstRecordValue(record, ["preactspspd"]);
-    const preActsValue = parseMetricNumber(preActsPspd);
-    if (preActsPspd !== "" && preActsValue <= 25) {
-      return Math.round(preActsValue * mtdPaceMultiplier());
-    }
-
-    const rawPreActs = firstRecordValue(record, ["prepaidactivation", "preacts"]);
-    return rawPreActs === "" ? 0 : parseMetricNumber(rawPreActs);
+    return pacedMetricFromRecord(record, {
+      rawKeys: ["prepaidactivation", "preacts"],
+      pspdKeys: ["preactspspd"],
+      maxPspd: 25,
+      round: Math.round
+    });
   }
 
   if (metricName === "Device Protection") {
@@ -1885,6 +1965,19 @@ function metricMtdFromRecord(record, metricName, sourceKeys) {
 
   const value = firstRecordValue(record, sourceKeys);
   return value === "" ? 0 : parseMetricNumber(value);
+}
+
+function pacedMetricFromRecord(record, { rawKeys = [], pspdKeys = [], maxPspd = Infinity, round = roundMetricValue }) {
+  const pspdRaw = firstRecordValue(record, pspdKeys);
+  if (pspdRaw !== "") {
+    const pspdValue = parseMetricNumber(pspdRaw);
+    if (pspdValue <= maxPspd) {
+      return round(pspdValue * mtdPaceMultiplier());
+    }
+  }
+
+  const rawValue = firstRecordValue(record, rawKeys);
+  return rawValue === "" ? 0 : parseMetricNumber(rawValue);
 }
 
 function rateMetricFromRecord(record, sourceKeys) {

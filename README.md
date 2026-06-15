@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.22`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.23`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
