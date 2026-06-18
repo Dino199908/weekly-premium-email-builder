@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.23`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.24`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -45,6 +45,7 @@ The finished files will be created in `dist`.
 
 - Stores four starter locations in your browser.
 - Lets you edit contact names, visits, important notes, MTD numbers, and monthly goals.
+- Keeps standard location tier hours ready for every store: Sunday `11-6`, Monday-Wednesday `11-7`, Thursday `11-8`, and Friday-Saturday `10-8`.
 - Automatically writes progress lines like `73% to goal ($2,000 remaining)`.
 - Copies one store email or all store emails.
 - Saves the current email or all store emails to `.txt` files.

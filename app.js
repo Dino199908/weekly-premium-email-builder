@@ -5,6 +5,16 @@ const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1)
 };
 
+const STANDARD_TIER_HOURS = [
+  { label: "Sunday", hours: "11-6" },
+  { label: "Monday - Wednesday", hours: "11-7" },
+  { label: "Thursday", hours: "11-8" },
+  { label: "Friday - Saturday", hours: "10-8" }
+];
+const STANDARD_TIER_HOURS_TEXT = STANDARD_TIER_HOURS
+  .map(({ label, hours }) => `${label}: ${hours}`)
+  .join("\n");
+
 const metricDefaults = [
   { name: "Postpaid Activation", mtd: 14, goal: 41, format: "number" },
   { name: "Prepaid Sales", mtd: 30, goal: 60, format: "number" },
@@ -137,6 +147,8 @@ const elements = {
   mappingStatus: document.querySelector("#mappingStatus"),
   storeMappingsList: document.querySelector("#storeMappingsList"),
   screenshotDropZone: document.querySelector("#screenshotDropZone"),
+  applyTierHoursBtn: document.querySelector("#applyTierHoursBtn"),
+  tierHoursSummary: document.querySelector("#tierHoursSummary"),
   visitTemplate: document.querySelector("#visitTemplate"),
   metricTemplate: document.querySelector("#metricTemplate"),
   mappingTemplate: document.querySelector("#mappingTemplate")
@@ -162,6 +174,7 @@ document.querySelector("#backupSettingsBtn").addEventListener("click", backupSet
 document.querySelector("#restoreSettingsInput").addEventListener("change", restoreSettings);
 document.querySelector("#importInput").addEventListener("change", importData);
 document.querySelector("#pasteImportBtn").addEventListener("click", importPastedRows);
+elements.applyTierHoursBtn.addEventListener("click", applyStandardTierHours);
 document.addEventListener("paste", handleClipboardPaste, true);
 elements.screenshotDropZone.addEventListener("click", () => elements.screenshotDropZone.focus());
 elements.screenshotDropZone.addEventListener("paste", handleClipboardPaste);
@@ -169,13 +182,22 @@ elements.reportPreview.addEventListener("paste", handleClipboardPaste);
 elements.reportPreview.addEventListener("drop", blockReportPreviewDrop);
 
 elements.form.addEventListener("input", (event) => {
-  if (event.target.closest("#visitsList, #metricsList")) return;
+  if (event.target.closest("#visitsList, #metricsList, #storeMappingsList")) return;
   if (event.target === elements.mtdMultiplier) {
     updateMtdMultiplier();
     return;
   }
   updateActiveStoreFromForm();
-  saveAndRender();
+  saveWithoutRender();
+  if (event.target === elements.weekStart || event.target === elements.weekEnd) {
+    renderVisits();
+  }
+  if (event.target === elements.storeName || event.target === elements.contactName) {
+    renderTabs();
+  }
+  renderTierHoursSummary();
+  renderChecklist();
+  renderPreview();
 });
 
 render();
@@ -217,7 +239,7 @@ function normalizeSavedStore(store) {
   return {
     ...store,
     staffingNotes: store.staffingNotes || "",
-    hoursNotes: store.hoursNotes || "",
+    hoursNotes: String(store.hoursNotes || "").trim() || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
     metrics: normalizeMetricFormats(store.metrics)
@@ -370,13 +392,13 @@ function render() {
 
 function renderImportSettings() {
   elements.mtdMultiplier.value = state.settings?.mtdMultiplier || defaultSettings.mtdMultiplier;
-  elements.multiplierStatus.textContent = `Prepaid Sales and Accessory Sales use x${elements.mtdMultiplier.value || defaultSettings.mtdMultiplier} when importing PSPD values.`;
+  elements.multiplierStatus.textContent = `Prepaid Sales, Prepaid Activation, and Accessory Sales use x${elements.mtdMultiplier.value || defaultSettings.mtdMultiplier} when importing PSPD values.`;
 }
 
 function updateMtdMultiplier() {
   const value = Math.max(Number(elements.mtdMultiplier.value || defaultSettings.mtdMultiplier), 1);
   state.settings = { ...defaultSettings, ...(state.settings || {}), mtdMultiplier: value };
-  elements.multiplierStatus.textContent = `Prepaid Sales and Accessory Sales use x${value} when importing PSPD values.`;
+  elements.multiplierStatus.textContent = `Prepaid Sales, Prepaid Activation, and Accessory Sales use x${value} when importing PSPD values.`;
   saveWithoutRender();
 }
 
@@ -474,7 +496,7 @@ function finalizeImportedState(imported, previousState) {
       weekEnd: store.weekEnd || previous?.weekEnd || "",
       visits: Array.isArray(previous?.visits) && previous.visits.length ? previous.visits : store.visits,
       staffingNotes: store.staffingNotes || previous?.staffingNotes || "",
-      hoursNotes: store.hoursNotes || previous?.hoursNotes || "",
+      hoursNotes: store.hoursNotes || previous?.hoursNotes || STANDARD_TIER_HOURS_TEXT,
       openItems: store.openItems || previous?.openItems || "",
       featuredDeals: store.featuredDeals || previous?.featuredDeals || "",
       metrics: mergeMetricGoals(store.metrics || [], previous?.metrics || [])
@@ -551,11 +573,58 @@ function renderForm() {
   elements.openItems.value = store.openItems || "";
   elements.featuredDeals.value = store.featuredDeals || "";
 
+  renderTierHoursSummary();
+  renderVisits();
+  renderMetrics();
+}
+
+function renderVisits() {
+  const store = getActiveStore();
+  if (!store) return;
   elements.visitsList.innerHTML = "";
   store.visits.forEach((visit, index) => elements.visitsList.appendChild(createVisitRow(visit, index)));
+}
 
+function renderMetrics() {
+  const store = getActiveStore();
+  if (!store) return;
   elements.metricsList.innerHTML = "";
   store.metrics.forEach((metric, index) => elements.metricsList.appendChild(createMetricRow(metric, index)));
+}
+
+function renderTierHoursSummary() {
+  const store = getActiveStore();
+  if (!store || !elements.tierHoursSummary) return;
+
+  const lines = String(store.hoursNotes || STANDARD_TIER_HOURS_TEXT)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const entries = lines.map((line) => {
+    const separator = line.indexOf(":");
+    if (separator < 0) return { label: "Custom", hours: line };
+    return {
+      label: line.slice(0, separator).trim(),
+      hours: line.slice(separator + 1).trim()
+    };
+  });
+
+  elements.tierHoursSummary.innerHTML = entries
+    .map(({ label, hours }) => `<div class="tier-hours-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(hours)}</strong></div>`)
+    .join("");
+}
+
+function applyStandardTierHours() {
+  const store = getActiveStore();
+  if (!store) return;
+  store.hoursNotes = STANDARD_TIER_HOURS_TEXT;
+  store.polishedEmail = "";
+  elements.hoursNotes.value = STANDARD_TIER_HOURS_TEXT;
+  saveWithoutRender();
+  renderTierHoursSummary();
+  renderChecklist();
+  renderPreview();
+  elements.statusText.textContent = "Standard location tier hours applied.";
 }
 
 function createVisitRow(visit, index) {
@@ -669,7 +738,7 @@ function addStore() {
     importantNotes: "",
     helpNotes: "",
     staffingNotes: "",
-    hoursNotes: "",
+    hoursNotes: STANDARD_TIER_HOURS_TEXT,
     openItems: "",
     featuredDeals: "",
     metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
@@ -1700,7 +1769,7 @@ function normalizeCsvImport(text) {
         importantNotes: record.importantnotes || "",
         helpNotes: record.helpnotes || "",
         staffingNotes: record.staffingnotes || record.staffing || "",
-        hoursNotes: record.hoursnotes || record.locationhours || record.hours || "",
+        hoursNotes: record.hoursnotes || record.locationhours || record.hours || STANDARD_TIER_HOURS_TEXT,
         openItems: record.openitems || record.assistancerequested || "",
         featuredDeals: record.featureddeals || record.devicedeals || record.deals || "",
         metrics: []
@@ -1743,7 +1812,7 @@ function normalizePerformanceReport(rows, headers) {
         importantNotes: buildReportNote(record, benchmark),
         helpNotes: buildHelpNote(record, benchmark),
         staffingNotes: "",
-        hoursNotes: "",
+        hoursNotes: STANDARD_TIER_HOURS_TEXT,
         openItems: "",
         featuredDeals: "",
         metrics
@@ -1777,7 +1846,7 @@ function normalizeOcrReport(text) {
       importantNotes: buildReportNote(record, benchmark),
       helpNotes: buildHelpNote(record, benchmark),
       staffingNotes: "",
-      hoursNotes: "",
+      hoursNotes: STANDARD_TIER_HOURS_TEXT,
       openItems: "",
       featuredDeals: "",
       metrics: performanceMetricsFromRecord(record)
@@ -1803,7 +1872,7 @@ function ensureExpectedStores(imported) {
       importantNotes: `The screenshot did not include a readable row for Store ${storeNumber}. Please review this store's numbers before sending.`,
       helpNotes: "Please review the month-to-date numbers for this store and update any unread values before sending.",
       staffingNotes: "",
-      hoursNotes: "",
+      hoursNotes: STANDARD_TIER_HOURS_TEXT,
       openItems: "",
       featuredDeals: "",
       metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
@@ -2008,7 +2077,7 @@ function normalizeStore(store) {
     importantNotes: store.importantNotes || "",
     helpNotes: store.helpNotes || "",
     staffingNotes: store.staffingNotes || "",
-    hoursNotes: store.hoursNotes || "",
+    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
     metrics: normalizeMetricFormats(store.metrics)
