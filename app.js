@@ -1,6 +1,7 @@
 const STORAGE_KEY = "premiumWeeklyEmailBuilder.v1";
 const STORE_MAPPING_KEY = "premiumWeeklyEmailBuilder.storeMappings.v1";
 const DEFAULT_CC_EMAIL = "KHartley@premiumretail.com";
+const MAX_HISTORY_ITEMS = 40;
 const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1)
 };
@@ -77,6 +78,8 @@ const sampleStores = [
     ],
     importantNotes: "Harlan has been having a rough start to the month, but I am confident that my team can get the sales turned around.",
     helpNotes: "The chart below shows the team's focal metrics and goals for this month for your store, as well as surrounding locations.",
+    regularReps: "Henry Stewart, Shane Kelly",
+    preferredWording: "Keep the tone friendly, direct, and focused on partnership.",
     metrics: metricDefaults
   },
   {
@@ -114,11 +117,12 @@ const sampleStores = [
   }
 ];
 
+const IS_FEATURE_TEST = globalThis.__WEEKLY_EMAIL_FEATURE_TEST__ === true;
 let state = loadState();
 let activeStoreId = state.stores[0]?.id;
 let storeMappings = loadStoreMappings();
 
-const elements = {
+const elements = IS_FEATURE_TEST ? {} : {
   tabs: document.querySelector("#storeTabs"),
   form: document.querySelector("#storeForm"),
   storeNumber: document.querySelector("#storeNumber"),
@@ -133,6 +137,8 @@ const elements = {
   hoursNotes: document.querySelector("#hoursNotes"),
   openItems: document.querySelector("#openItems"),
   featuredDeals: document.querySelector("#featuredDeals"),
+  regularReps: document.querySelector("#regularReps"),
+  preferredWording: document.querySelector("#preferredWording"),
   visitsList: document.querySelector("#visitsList"),
   metricsList: document.querySelector("#metricsList"),
   emailPreview: document.querySelector("#emailPreview"),
@@ -149,11 +155,17 @@ const elements = {
   screenshotDropZone: document.querySelector("#screenshotDropZone"),
   applyTierHoursBtn: document.querySelector("#applyTierHoursBtn"),
   tierHoursSummary: document.querySelector("#tierHoursSummary"),
+  readinessBoard: document.querySelector("#readinessBoard"),
+  profileSummary: document.querySelector("#profileSummary"),
+  coachingInsight: document.querySelector("#coachingInsight"),
+  preSendReview: document.querySelector("#preSendReview"),
+  historyList: document.querySelector("#historyList"),
   visitTemplate: document.querySelector("#visitTemplate"),
   metricTemplate: document.querySelector("#metricTemplate"),
   mappingTemplate: document.querySelector("#mappingTemplate")
 };
 
+if (!IS_FEATURE_TEST) {
 document.querySelector("#pasteScreenshotBtn").addEventListener("click", pasteScreenshotFromClipboard);
 document.querySelector("#addStoreBtn").addEventListener("click", addStore);
 document.querySelector("#addVisitBtn").addEventListener("click", addVisit);
@@ -174,6 +186,14 @@ document.querySelector("#backupSettingsBtn").addEventListener("click", backupSet
 document.querySelector("#restoreSettingsInput").addEventListener("change", restoreSettings);
 document.querySelector("#importInput").addEventListener("change", importData);
 document.querySelector("#pasteImportBtn").addEventListener("click", importPastedRows);
+document.querySelector("#saveProfileBtn").addEventListener("click", saveActiveProfile);
+document.querySelector("#applyProfileBtn").addEventListener("click", applyActiveProfile);
+document.querySelector("#copyRichEmailBtn").addEventListener("click", copyRichEmail);
+document.querySelector("#createOutlookDraftBtn").addEventListener("click", createActiveOutlookDraft);
+document.querySelector("#createAllDraftsBtn").addEventListener("click", createAllOutlookDrafts);
+document.querySelector("#saveSnapshotBtn").addEventListener("click", saveActiveSnapshot);
+document.querySelector("#duplicateLastWeekBtn").addEventListener("click", duplicateLastWeek);
+document.querySelector("#markSentBtn").addEventListener("click", markActiveSent);
 elements.applyTierHoursBtn.addEventListener("click", applyStandardTierHours);
 document.addEventListener("paste", handleClipboardPaste, true);
 elements.screenshotDropZone.addEventListener("click", () => elements.screenshotDropZone.focus());
@@ -197,6 +217,10 @@ elements.form.addEventListener("input", (event) => {
   }
   renderTierHoursSummary();
   renderChecklist();
+  renderReadinessBoard();
+  renderProfileSummary();
+  renderCoachingInsight();
+  renderPreSendReview();
   renderPreview();
 });
 
@@ -206,6 +230,7 @@ loadPersistentStoreMappings();
 window.weeklyEmailApp?.onUpdateStatus?.((message) => {
   elements.statusText.textContent = message;
 });
+}
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -231,7 +256,10 @@ function normalizeLoadedState(value) {
     ...value,
     stores: stores.map(normalizeSavedStore),
     settings: { ...defaultSettings, ...(value.settings || {}) },
-    lastImportReview: Array.isArray(value.lastImportReview) ? value.lastImportReview : []
+    lastImportReview: Array.isArray(value.lastImportReview) ? value.lastImportReview : [],
+    profiles: Array.isArray(value.profiles) ? value.profiles : [],
+    history: Array.isArray(value.history) ? value.history.slice(0, MAX_HISTORY_ITEMS) : [],
+    lastSavedAt: value.lastSavedAt || new Date().toISOString()
   };
 }
 
@@ -242,6 +270,9 @@ function normalizeSavedStore(store) {
     hoursNotes: String(store.hoursNotes || "").trim() || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
+    regularReps: store.regularReps || "",
+    preferredWording: store.preferredWording || "",
+    lastSentWeekKey: store.lastSentWeekKey || "",
     metrics: normalizeMetricFormats(store.metrics)
   };
 }
@@ -387,6 +418,11 @@ function render() {
   renderImportSettings();
   renderImportReview();
   renderChecklist();
+  renderReadinessBoard();
+  renderProfileSummary();
+  renderCoachingInsight();
+  renderPreSendReview();
+  renderHistory();
   renderPreview();
 }
 
@@ -452,6 +488,209 @@ function buildChecklist(store) {
   ];
 }
 
+function buildSafetyChecks(store) {
+  const metricNames = new Set((store.metrics || []).map((metric) => metric.name));
+  const metricsReadable = metricDefaults.every((metric) => metricNames.has(metric.name)) &&
+    (store.metrics || []).every((metric) => metric.mtd !== "" && Number.isFinite(Number(metric.mtd))) &&
+    metricValuesLookReasonable(store.metrics || []);
+  const goalsPresent = metricDefaults.every((metric) => {
+    const saved = (store.metrics || []).find((item) => item.name === metric.name);
+    return Number(saved?.goal || 0) > 0;
+  });
+  const visits = Array.isArray(store.visits) ? store.visits : [];
+  const visitsReady = visits.length > 0 && visits.every((visit) => visit.date && String(visit.person || "").trim());
+  const datesReady = isCurrentWeekRange(store.weekStart, store.weekEnd);
+
+  return [
+    { id: "email", ok: isEmailAddress(store.managerEmail), label: "Manager email", detail: isEmailAddress(store.managerEmail) ? store.managerEmail : "Add a valid manager email" },
+    { id: "dates", ok: datesReady, label: "Current week dates", detail: datesReady ? formatWeekRange(store.weekStart, store.weekEnd) : "Choose the current reporting week" },
+    { id: "visits", ok: visitsReady, label: "Visits scheduled", detail: visitsReady ? `${visits.length} visit${visits.length === 1 ? "" : "s"} ready` : "Add a representative to every visit" },
+    { id: "metrics", ok: metricsReadable, label: "Metrics readable", detail: metricsReadable ? "All five metrics look valid" : "Review missing or unusual metric values" },
+    { id: "goals", ok: goalsPresent, label: "Goals present", detail: goalsPresent ? "All five goals are set" : "Add a goal for every focal metric" },
+    { id: "notes", ok: Boolean(cleanSentence(store.importantNotes) && cleanSentence(store.helpNotes)), label: "Notes added", detail: cleanSentence(store.importantNotes) && cleanSentence(store.helpNotes) ? "Important and support notes are ready" : "Complete both weekly note fields" },
+    { id: "saved", ok: Boolean(state.lastSavedAt), label: "Saved state", detail: state.lastSavedAt ? `Saved ${formatDateTime(state.lastSavedAt)}` : "Save the current edits" }
+  ];
+}
+
+function metricValuesLookReasonable(metrics) {
+  return metrics.every((metric) => {
+    const value = Number(metric.mtd);
+    if (!Number.isFinite(value) || value < 0) return false;
+    if (metric.format === "percent" && value > 100) return false;
+    if (metric.name === "Postpaid Activation" && value > 150) return false;
+    if (metric.name === "Prepaid Sales" && value > 1000) return false;
+    if (metric.name === "Accessory Sales" && value > 100000) return false;
+    return true;
+  });
+}
+
+function isEmailAddress(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function isCurrentWeekRange(startValue, endValue) {
+  const start = parseDateInput(startValue);
+  const end = parseDateInput(endValue);
+  if (!start || !end || end < start) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const earliest = new Date(today);
+  earliest.setDate(earliest.getDate() - 8);
+  const latest = new Date(today);
+  latest.setDate(latest.getDate() + 21);
+  return end >= earliest && start <= latest;
+}
+
+function getReadiness(store) {
+  const checks = buildSafetyChecks(store);
+  const passed = checks.filter((check) => check.ok).length;
+  const total = checks.length;
+  const weekKey = storeWeekKey(store);
+  if (store.lastSentWeekKey && store.lastSentWeekKey === weekKey) {
+    return { state: "sent", label: "Sent", passed: total, total, percent: 100, checks };
+  }
+  if (passed === total) {
+    return { state: "ready", label: "Ready", passed, total, percent: 100, checks };
+  }
+  const missingData = checks.some((check) => ["dates", "metrics"].includes(check.id) && !check.ok);
+  return {
+    state: missingData ? "needs-data" : "needs-review",
+    label: missingData ? "Needs data" : "Needs review",
+    passed,
+    total,
+    percent: Math.round((passed / total) * 100),
+    checks
+  };
+}
+
+function renderReadinessBoard() {
+  if (!elements.readinessBoard) return;
+  elements.readinessBoard.innerHTML = state.stores.map((store) => {
+    const readiness = getReadiness(store);
+    return `<button class="readiness-card ${readiness.state}${store.id === activeStoreId ? " active" : ""}" type="button" data-store-id="${escapeHtml(store.id)}">
+      <span class="readiness-card-head"><strong>${escapeHtml(store.storeName || "Untitled Store")}</strong><span>${escapeHtml(readiness.label)}</span></span>
+      <span class="readiness-progress"><i style="--readiness:${readiness.percent}%"></i></span>
+      <span class="readiness-count">${readiness.passed} / ${readiness.total}<small>${readiness.percent}%</small></span>
+    </button>`;
+  }).join("");
+
+  elements.readinessBoard.querySelectorAll("[data-store-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeStoreId = button.dataset.storeId;
+      render();
+    });
+  });
+}
+
+function renderProfileSummary() {
+  const store = getActiveStore();
+  if (!store || !elements.profileSummary) return;
+  elements.profileSummary.innerHTML = [
+    ["Manager", store.contactName || "Not set"],
+    ["Manager email", store.managerEmail || "Not set"],
+    ["Location tier hours", compactTierHours(store.hoursNotes)],
+    ["Regular representatives", store.regularReps || "Not set"],
+    ["Preferred wording", store.preferredWording || "Use the standard partnership tone"]
+  ].map(([label, value]) => `<div class="profile-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+}
+
+function compactTierHours(value) {
+  return String(value || STANDARD_TIER_HOURS_TEXT)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function buildCoachingInsight(store) {
+  const metrics = (store.metrics || [])
+    .filter((metric) => Number(metric.goal || 0) > 0)
+    .map((metric) => ({ metric, progress: calculateProgress(metric) }));
+  const strongest = [...metrics].sort((a, b) => b.progress.percent - a.progress.percent)[0];
+  const biggestGap = [...metrics].sort((a, b) => a.progress.percent - b.progress.percent)[0];
+  const remaining = biggestGap ? Math.max(Number(biggestGap.metric.goal || 0) - Number(biggestGap.metric.mtd || 0), 0) : 0;
+  const days = Math.max(daysRemainingInMonth(), 1);
+  const pace = biggestGap ? remaining / days : 0;
+  return {
+    strongest: strongest ? `${strongest.metric.name} (${Math.round(strongest.progress.percent)}% to goal)` : "Add goals to identify a strongest result",
+    gap: biggestGap ? `${biggestGap.metric.name} (${Math.round(biggestGap.progress.percent)}% to goal)` : "Add goals to identify the biggest gap",
+    pace: biggestGap ? `${formatValue(roundPace(pace, biggestGap.metric.format), biggestGap.metric.format)} per day for ${biggestGap.metric.name}` : "Add goals to calculate the needed pace",
+    focus: coachingFocusForMetric(biggestGap?.metric?.name)
+  };
+}
+
+function roundPace(value, format) {
+  return format === "currency" ? Math.ceil(value) : Math.ceil(value * 100) / 100;
+}
+
+function daysRemainingInMonth() {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return Math.max(end.getDate() - today.getDate() + 1, 1);
+}
+
+function coachingFocusForMetric(name) {
+  const focus = {
+    "Postpaid Activation": "Prioritize postpaid discovery, qualified handoffs, and confident close attempts.",
+    "Prepaid Sales": "Drive prepaid conversations on every eligible customer and surface value early.",
+    "Prepaid Activation": "Convert more prepaid interest into completed activations with clear next steps.",
+    "Device Protection": "Use consistent protection questions and connect coverage to the customer's real risks.",
+    "Accessory Sales": "Build complete device solutions and attach the right accessories during every setup."
+  };
+  return focus[name] || "Keep the team focused on the lowest progress-to-goal metric this week.";
+}
+
+function renderCoachingInsight() {
+  const store = getActiveStore();
+  if (!store || !elements.coachingInsight) return;
+  const insight = buildCoachingInsight(store);
+  elements.coachingInsight.innerHTML = `
+    <div class="insight-item"><span>Strongest result</span><strong class="positive">${escapeHtml(insight.strongest)}</strong></div>
+    <div class="insight-item"><span>Biggest gap</span><strong class="attention">${escapeHtml(insight.gap)}</strong></div>
+    <div class="insight-item"><span>Needed pace</span><strong>${escapeHtml(insight.pace)}</strong></div>
+    <div class="insight-item"><span>Suggested focus</span><p>${escapeHtml(insight.focus)}</p></div>`;
+}
+
+function renderPreSendReview() {
+  const store = getActiveStore();
+  if (!store || !elements.preSendReview) return;
+  const checks = buildSafetyChecks(store);
+  const passed = checks.filter((check) => check.ok).length;
+  elements.preSendReview.innerHTML = `
+    <div class="safety-list">${checks.map((check) => `<div class="safety-row ${check.ok ? "ok" : "warn"}"><span>${escapeHtml(check.label)}</span><strong>${check.ok ? "✓" : "!"} ${escapeHtml(check.detail)}</strong></div>`).join("")}</div>
+    <div class="safety-summary"><strong>${passed} passed</strong><span>${checks.length - passed} warning${checks.length - passed === 1 ? "" : "s"}</span></div>`;
+}
+
+function renderHistory() {
+  const store = getActiveStore();
+  if (!store || !elements.historyList) return;
+  const items = historyForStore(store);
+  if (!items.length) {
+    elements.historyList.innerHTML = `<div class="history-empty"><strong>No weekly snapshots yet</strong><span>Save a snapshot or open an email draft to start the timeline.</span></div>`;
+    return;
+  }
+
+  elements.historyList.innerHTML = items.slice(0, 8).map((item, index) => {
+    const prior = items[index + 1];
+    const rows = (item.metrics || []).map((metric) => {
+      const previous = (prior?.metrics || []).find((candidate) => candidate.name === metric.name);
+      const delta = previous ? Number(metric.mtd || 0) - Number(previous.mtd || 0) : 0;
+      const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+      return `<div class="history-metric"><span>${escapeHtml(metric.name)}</span><strong>${escapeHtml(formatValue(metric.mtd, metric.format))}</strong><small class="${direction}">${delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} ${delta ? escapeHtml(formatValue(Math.abs(delta), metric.format)) : ""}</small></div>`;
+    }).join("");
+    return `<article class="history-card">
+      <header><strong>${escapeHtml(formatWeekRange(item.weekStart, item.weekEnd))}</strong><span class="history-status ${escapeHtml(item.status)}">${escapeHtml(historyStatusLabel(item.status))}</span></header>
+      <div class="history-metrics">${rows}</div>
+    </article>`;
+  }).join("");
+}
+
+function historyStatusLabel(status) {
+  if (status === "sent") return "Sent";
+  if (status === "draft") return "Drafted";
+  return "Snapshot";
+}
+
 function buildImportReviewRows(stores) {
   return (stores || []).map((store) => {
     const metrics = metricLookup(store);
@@ -499,16 +738,22 @@ function finalizeImportedState(imported, previousState) {
       hoursNotes: store.hoursNotes || previous?.hoursNotes || STANDARD_TIER_HOURS_TEXT,
       openItems: store.openItems || previous?.openItems || "",
       featuredDeals: store.featuredDeals || previous?.featuredDeals || "",
+      regularReps: store.regularReps || previous?.regularReps || "",
+      preferredWording: store.preferredWording || previous?.preferredWording || "",
+      lastSentWeekKey: previous?.lastSentWeekKey || "",
       metrics: mergeMetricGoals(store.metrics || [], previous?.metrics || [])
     };
-    return applyMappingToStore(merged);
+    return applyStoredProfileToStore(applyMappingToStore(merged), previousState?.profiles || state.profiles || []);
   });
 
   return {
     ...imported,
     stores,
     settings: { ...defaultSettings, ...(previousState?.settings || state.settings || {}) },
-    lastImportReview: buildImportReviewRows(stores)
+    lastImportReview: buildImportReviewRows(stores),
+    profiles: previousState?.profiles || state.profiles || [],
+    history: previousState?.history || state.history || [],
+    lastSavedAt: new Date().toISOString()
   };
 }
 
@@ -541,10 +786,11 @@ function renderTabs() {
   elements.tabs.innerHTML = "";
 
   state.stores.forEach((store) => {
+    const readiness = getReadiness(store);
     const button = document.createElement("button");
     button.type = "button";
     button.className = `store-tab${store.id === activeStoreId ? " active" : ""}`;
-    button.innerHTML = `<strong>${escapeHtml(store.storeName || "Untitled Store")}</strong><span>${escapeHtml(store.contactName || "No contact")}</span>`;
+    button.innerHTML = `<strong>${escapeHtml(store.storeName || "Untitled Store")}</strong><span>${escapeHtml(store.contactName || "No contact")}</span><small class="store-readiness ${readiness.state}">${escapeHtml(readiness.label)}</small>`;
     button.addEventListener("click", () => {
       activeStoreId = store.id;
       render();
@@ -572,6 +818,8 @@ function renderForm() {
   elements.hoursNotes.value = store.hoursNotes || "";
   elements.openItems.value = store.openItems || "";
   elements.featuredDeals.value = store.featuredDeals || "";
+  elements.regularReps.value = store.regularReps || "";
+  elements.preferredWording.value = store.preferredWording || "";
 
   renderTierHoursSummary();
   renderVisits();
@@ -670,8 +918,13 @@ function createMetricRow(metric, index) {
 function refreshMetricRowProgress(row, metric) {
   const progress = calculateProgress(metric);
   const progressEl = row.querySelector(".metric-progress");
+  const remainingEl = row.querySelector(".metric-remaining");
+  const remaining = Math.max(Number(metric.goal || 0) - Number(metric.mtd || 0), 0);
   progressEl.style.setProperty("--progress", `${Math.min(progress.percent, 100)}%`);
   progressEl.innerHTML = `<span>${progress.label}</span>`;
+  if (remainingEl) {
+    remainingEl.textContent = Number(metric.goal || 0) > 0 ? formatValue(remaining, metric.format) : "No goal";
+  }
 }
 
 function metricInputValue(value) {
@@ -680,7 +933,7 @@ function metricInputValue(value) {
 
 function renderPreview() {
   const store = getActiveStore();
-  elements.emailPreview.textContent = store?.polishedEmail || buildEmail(store);
+  elements.emailPreview.innerHTML = buildRichEmailHtml(store);
 }
 
 function updateActiveStoreFromForm() {
@@ -701,6 +954,8 @@ function updateActiveStoreFromForm() {
   store.hoursNotes = elements.hoursNotes.value;
   store.openItems = elements.openItems.value;
   store.featuredDeals = elements.featuredDeals.value;
+  store.regularReps = elements.regularReps.value;
+  store.preferredWording = elements.preferredWording.value;
   if (store.weekStart !== previousWeekStart || store.weekEnd !== previousWeekEnd) {
     syncVisitsToWeekRange(store);
   }
@@ -713,6 +968,9 @@ function updateVisit(index, field, value) {
   store.polishedEmail = "";
   saveWithoutRender();
   renderChecklist();
+  renderReadinessBoard();
+  renderCoachingInsight();
+  renderPreSendReview();
   renderPreview();
 }
 
@@ -723,6 +981,9 @@ function updateMetric(index, field, value, row) {
   if (row) refreshMetricRowProgress(row, store.metrics[index]);
   saveWithoutRender();
   renderChecklist();
+  renderReadinessBoard();
+  renderCoachingInsight();
+  renderPreSendReview();
   renderPreview();
 }
 
@@ -741,6 +1002,9 @@ function addStore() {
     hoursNotes: STANDARD_TIER_HOURS_TEXT,
     openItems: "",
     featuredDeals: "",
+    regularReps: "",
+    preferredWording: "",
+    lastSentWeekKey: "",
     metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
   };
   state.stores.push(store);
@@ -780,12 +1044,14 @@ function addMetric() {
 }
 
 function saveAndRender() {
+  state.lastSavedAt = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   updateSavedStatus();
   render();
 }
 
 function saveWithoutRender() {
+  state.lastSavedAt = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   updateSavedStatus();
 }
@@ -796,6 +1062,203 @@ function updateSavedStatus() {
 
 function getActiveStore() {
   return state.stores.find((store) => store.id === activeStoreId);
+}
+
+function storeIdentity(store) {
+  const number = String(store?.storeNumber || "").trim();
+  if (number) return `number:${number}`;
+  return `name:${String(store?.storeName || "untitled").trim().toLowerCase()}`;
+}
+
+function storeWeekKey(store) {
+  return `${storeIdentity(store)}|${store?.weekStart || "no-start"}|${store?.weekEnd || "no-end"}`;
+}
+
+function profileForStore(store, profiles = state.profiles || []) {
+  const identity = storeIdentity(store);
+  return profiles.find((profile) => profile.storeKey === identity) || null;
+}
+
+function buildProfileFromStore(store) {
+  return {
+    id: profileForStore(store)?.id || crypto.randomUUID(),
+    storeKey: storeIdentity(store),
+    storeNumber: store.storeNumber || "",
+    storeName: store.storeName || "",
+    contactName: store.contactName || "",
+    managerEmail: store.managerEmail || "",
+    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+    regularReps: store.regularReps || "",
+    preferredWording: store.preferredWording || "",
+    goals: (store.metrics || []).map((metric) => ({ name: metric.name, goal: metric.goal, format: metric.format })),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function saveActiveProfile() {
+  const store = getActiveStore();
+  if (!store) return;
+  const profile = buildProfileFromStore(store);
+  state.profiles = (state.profiles || []).filter((item) => item.storeKey !== profile.storeKey);
+  state.profiles.unshift(profile);
+  saveAndRender();
+  elements.statusText.textContent = `${store.storeName} profile saved.`;
+}
+
+function applyStoredProfileToStore(store, profiles = state.profiles || []) {
+  const profile = profileForStore(store, profiles);
+  if (!profile) return store;
+  const goals = Array.isArray(profile.goals) ? profile.goals : [];
+  return {
+    ...store,
+    storeName: profile.storeName || store.storeName,
+    contactName: profile.contactName || store.contactName,
+    managerEmail: profile.managerEmail || store.managerEmail,
+    hoursNotes: profile.hoursNotes || store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+    regularReps: profile.regularReps || store.regularReps || "",
+    preferredWording: profile.preferredWording || store.preferredWording || "",
+    metrics: (store.metrics || []).map((metric) => {
+      const saved = goals.find((goal) => goal.name === metric.name);
+      return saved ? { ...metric, goal: saved.goal, format: saved.format || metric.format } : metric;
+    })
+  };
+}
+
+function applyActiveProfile() {
+  const store = getActiveStore();
+  if (!store) return;
+  const profile = profileForStore(store);
+  if (!profile) {
+    elements.statusText.textContent = "No saved profile matches this store yet.";
+    return;
+  }
+  const applied = applyStoredProfileToStore(store);
+  Object.assign(store, applied, { polishedEmail: "" });
+  saveAndRender();
+  elements.statusText.textContent = `${store.storeName} profile applied.`;
+}
+
+function buildHistorySnapshot(store, status = "snapshot") {
+  return {
+    id: crypto.randomUUID(),
+    storeKey: storeIdentity(store),
+    storeNumber: store.storeNumber || "",
+    storeName: store.storeName || "",
+    status,
+    createdAt: new Date().toISOString(),
+    weekStart: store.weekStart || "",
+    weekEnd: store.weekEnd || "",
+    visits: structuredClone(store.visits || []),
+    importantNotes: store.importantNotes || "",
+    helpNotes: store.helpNotes || "",
+    staffingNotes: store.staffingNotes || "",
+    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+    openItems: store.openItems || "",
+    featuredDeals: store.featuredDeals || "",
+    regularReps: store.regularReps || "",
+    preferredWording: store.preferredWording || "",
+    metrics: structuredClone(store.metrics || []),
+    emailText: store.polishedEmail || buildEmail(store),
+    emailHtml: buildRichEmailHtml(store)
+  };
+}
+
+function recordSnapshot(store, status = "snapshot") {
+  const snapshot = buildHistorySnapshot(store, status);
+  const sameWeek = `${snapshot.storeKey}|${snapshot.weekStart}|${snapshot.weekEnd}`;
+  state.history = (state.history || []).filter((item) => {
+    const itemWeek = `${item.storeKey}|${item.weekStart}|${item.weekEnd}`;
+    return !(itemWeek === sameWeek && item.status === status);
+  });
+  state.history.unshift(snapshot);
+  state.history = state.history.slice(0, MAX_HISTORY_ITEMS);
+  return snapshot;
+}
+
+function historyForStore(store) {
+  const key = storeIdentity(store);
+  return (state.history || [])
+    .filter((item) => item.storeKey === key)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function saveActiveSnapshot() {
+  const store = getActiveStore();
+  if (!store) return;
+  recordSnapshot(store, "snapshot");
+  saveAndRender();
+  elements.statusText.textContent = `${store.storeName} weekly snapshot saved.`;
+}
+
+function markActiveSent() {
+  const store = getActiveStore();
+  if (!store) return;
+  store.lastSentWeekKey = storeWeekKey(store);
+  recordSnapshot(store, "sent");
+  saveAndRender();
+  elements.statusText.textContent = `${store.storeName} marked sent.`;
+}
+
+function duplicateLastWeek() {
+  const store = getActiveStore();
+  if (!store) return;
+  const latest = historyForStore(store)[0];
+  if (!latest) {
+    elements.statusText.textContent = "Save a weekly snapshot before duplicating last week.";
+    return;
+  }
+
+  const sourceStart = parseDateInput(latest.weekStart);
+  const sourceEnd = parseDateInput(latest.weekEnd);
+  const duration = sourceStart && sourceEnd ? Math.max(Math.round((sourceEnd - sourceStart) / 86400000), 0) : 6;
+  const targetStart = startOfCurrentWeek();
+  const targetEnd = new Date(targetStart);
+  targetEnd.setDate(targetEnd.getDate() + duration);
+  const sourceStartValue = latest.weekStart;
+
+  store.weekStart = toDateInputValue(targetStart);
+  store.weekEnd = toDateInputValue(targetEnd);
+  store.visits = (latest.visits || []).map((visit, index) => ({
+    date: sourceStartValue && visit.date ? shiftDateToWeek(visit.date, sourceStartValue, store.weekStart) : addDaysToInput(store.weekStart, index),
+    person: visit.person || ""
+  }));
+  store.importantNotes = latest.importantNotes || "";
+  store.helpNotes = latest.helpNotes || "";
+  store.staffingNotes = latest.staffingNotes || "";
+  store.hoursNotes = latest.hoursNotes || STANDARD_TIER_HOURS_TEXT;
+  store.openItems = latest.openItems || "";
+  store.featuredDeals = latest.featuredDeals || "";
+  store.regularReps = latest.regularReps || "";
+  store.preferredWording = latest.preferredWording || "";
+  store.metrics = structuredClone(latest.metrics || store.metrics || []);
+  store.lastSentWeekKey = "";
+  store.polishedEmail = "";
+  saveAndRender();
+  elements.statusText.textContent = `${store.storeName} duplicated into ${formatWeekRange(store.weekStart, store.weekEnd)}.`;
+}
+
+function startOfCurrentWeek() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - date.getDay());
+  return date;
+}
+
+function addDaysToInput(value, days) {
+  const date = parseDateInput(value);
+  if (!date) return "";
+  date.setDate(date.getDate() + Number(days || 0));
+  return toDateInputValue(date);
+}
+
+function shiftDateToWeek(value, sourceStart, targetStart) {
+  const date = parseDateInput(value);
+  const source = parseDateInput(sourceStart);
+  const target = parseDateInput(targetStart);
+  if (!date || !source || !target) return value || "";
+  const offset = Math.round((date - source) / 86400000);
+  target.setDate(target.getDate() + offset);
+  return toDateInputValue(target);
 }
 
 function buildEmail(store) {
@@ -905,6 +1368,65 @@ Month Goals:
 ${goalLines || "No month goals entered yet."}
 
 Please pass this update along to your management team as needed. As always, reach out any time with questions, concerns, store needs, or customer issues. I appreciate the partnership and look forward to continuing to help drive the store's success.`;
+}
+
+function buildRichEmailHtml(store) {
+  if (!store) return "";
+  const insight = buildCoachingInsight(store);
+  const visits = (store.visits || []).length
+    ? (store.visits || []).map((visit) => `<tr><td style="padding:5px 10px;border-bottom:1px solid #edf1ef;color:#5f6d68;font-size:13px;">${escapeHtml(formatDate(visit.date))}</td><td style="padding:5px 10px;border-bottom:1px solid #edf1ef;color:#1c2824;font-size:13px;">${escapeHtml(visit.person || "Open coverage")}</td></tr>`).join("")
+    : `<tr><td colspan="2" style="padding:8px 10px;color:#6b7672;font-size:13px;">No visits entered yet.</td></tr>`;
+  const metrics = (store.metrics || []).map((metric) => {
+    const progress = calculateProgress(metric);
+    const width = Math.max(0, Math.min(progress.percent, 100));
+    const remaining = Math.max(Number(metric.goal || 0) - Number(metric.mtd || 0), 0);
+    const color = progressColor(progress.percent);
+    const filledWidth = Math.round(width);
+    const emptyWidth = Math.max(100 - filledWidth, 0);
+    return `<tr>
+      <td style="padding:8px 8px;border-bottom:1px solid #edf1ef;color:#1c2824;font-size:12px;font-weight:600;">${escapeHtml(metric.name)}</td>
+      <td style="padding:8px;border-bottom:1px solid #edf1ef;color:#35413d;font-size:12px;text-align:right;">${escapeHtml(formatValue(metric.mtd, metric.format))}</td>
+      <td style="padding:8px;border-bottom:1px solid #edf1ef;color:#35413d;font-size:12px;text-align:right;">${escapeHtml(formatValue(metric.goal, metric.format))}</td>
+      <td style="padding:8px;border-bottom:1px solid #edf1ef;color:#6b7672;font-size:12px;text-align:right;">${remaining > 0 ? escapeHtml(formatValue(remaining, metric.format)) : "Goal reached"}</td>
+      <td style="padding:8px;border-bottom:1px solid #edf1ef;min-width:118px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="${filledWidth}%" height="7" bgcolor="${color}" style="height:7px;font-size:1px;line-height:1px;">&nbsp;</td><td width="${emptyWidth}%" height="7" bgcolor="#e8eeeb" style="height:7px;font-size:1px;line-height:1px;">&nbsp;</td></tr></table></td><td style="width:38px;padding-left:7px;color:#35413d;font-size:11px;text-align:right;">${Math.round(progress.percent)}%</td></tr></table></td>
+    </tr>`;
+  }).join("");
+  const optionalSections = [
+    ["Staffing Update", store.staffingNotes],
+    ["Location Tier Hours", store.hoursNotes],
+    ["Featured Device Deals", store.featuredDeals],
+    ["Open Items / Assistance Requested", store.openItems]
+  ].filter(([, body]) => cleanSentence(body)).map(([title, body]) => `<h3 style="margin:18px 0 6px;color:#173f34;font-size:14px;">${escapeHtml(title)}</h3><p style="margin:0 0 10px;color:#35413d;font-size:13px;line-height:1.55;white-space:pre-line;">${escapeHtml(cleanMultiline(body))}</p>`).join("");
+  const preferred = cleanSentence(store.preferredWording);
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:720px;margin:0 auto;border:1px solid #dbe2df;border-collapse:separate;border-spacing:0;background:#ffffff;font-family:Segoe UI,Arial,sans-serif;">
+    <tr><td style="padding:18px 22px;background:#087b61;color:#ffffff;">
+      <div style="font-size:18px;font-weight:700;line-height:1.25;">${escapeHtml(store.storeName || "Store")} Weekly Partnership Update</div>
+      <div style="margin-top:3px;font-size:12px;opacity:.9;">${escapeHtml(formatWeekRange(store.weekStart, store.weekEnd))}</div>
+    </td></tr>
+    <tr><td style="padding:22px;">
+      <p style="margin:0 0 14px;color:#1c2824;font-size:14px;line-height:1.55;">Good morning ${escapeHtml(store.contactName || "there")},</p>
+      <p style="margin:0 0 16px;color:#35413d;font-size:13px;line-height:1.6;">Here is your weekly Premium partnership update. I want to keep you current on coverage, results, and where our partnership can help close the remaining gaps.</p>
+      <h2 style="margin:18px 0 8px;color:#173f34;font-size:15px;">Upcoming Visits</h2>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e1e7e4;border-radius:5px;border-collapse:separate;border-spacing:0;">${visits}</table>
+      ${optionalSections}
+      <h2 style="margin:20px 0 8px;color:#173f34;font-size:15px;">Results Update</h2>
+      <p style="margin:0 0 12px;color:#35413d;font-size:13px;line-height:1.6;">${escapeHtml(buildPolishedSummary(store))}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border:1px solid #dbe2df;border-collapse:separate;border-spacing:0;">
+        <tr style="background:#f5f8f7;"><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Metric</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">MTD</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Goal</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Remaining</th><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;">Progress</th></tr>
+        ${metrics}
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #b8d8cc;background:#eff8f4;"><tr><td style="padding:12px 14px;"><strong style="display:block;color:#087b61;font-size:12px;">Focus this week</strong><span style="display:block;margin-top:4px;color:#35413d;font-size:13px;line-height:1.5;">${escapeHtml(insight.focus)}</span></td></tr></table>
+      <p style="margin:18px 0 0;color:#35413d;font-size:13px;line-height:1.6;">${escapeHtml(preferred || "If you or your management team have any questions or concerns, please feel free to contact me anytime.")}</p>
+      <p style="margin:14px 0 0;color:#35413d;font-size:13px;line-height:1.6;">Thanks,<br><strong>Premium Retail Team</strong></p>
+    </td></tr>
+  </table>`;
+}
+
+function progressColor(percent) {
+  if (percent >= 80) return "#087b61";
+  if (percent >= 55) return "#d7a80c";
+  return "#df6b58";
 }
 
 function buildOptionalEmailSections(store) {
@@ -1119,6 +1641,22 @@ function formatDate(value) {
   return `${month}/${day}`;
 }
 
+function formatWeekRange(startValue, endValue) {
+  const start = parseDateInput(startValue);
+  const end = parseDateInput(endValue);
+  if (!start || !end) return "Week dates not set";
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const startText = start.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+  const endText = end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return `${startText} - ${endText}`;
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "locally";
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 function formatValue(value, format) {
   const number = Number(value || 0);
 
@@ -1138,8 +1676,31 @@ function trimNumber(value) {
 }
 
 async function copyActiveEmail() {
-  await navigator.clipboard.writeText(buildEmail(getActiveStore()));
+  const store = getActiveStore();
+  await navigator.clipboard.writeText(store?.polishedEmail || buildEmail(store));
   elements.statusText.textContent = "Current email copied.";
+}
+
+async function copyRichEmail() {
+  const store = getActiveStore();
+  if (!store) return;
+  const html = buildRichEmailHtml(store);
+  const text = store.polishedEmail || buildEmail(store);
+  if (window.weeklyEmailApp?.copyRichEmail) {
+    const result = await window.weeklyEmailApp.copyRichEmail({ html, text });
+    if (!result?.ok) {
+      showImportError(result?.error || "The rich email could not be copied.");
+      return;
+    }
+  } else if (window.ClipboardItem && navigator.clipboard?.write) {
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/html": new Blob([html], { type: "text/html" }),
+      "text/plain": new Blob([text], { type: "text/plain" })
+    })]);
+  } else {
+    await navigator.clipboard.writeText(text);
+  }
+  elements.statusText.textContent = "Outlook-ready rich email copied.";
 }
 
 async function copyAllEmails() {
@@ -1167,12 +1728,80 @@ async function sendActiveEmail() {
       showImportError(result?.error || "Windows could not open an email draft. Check your default mail app.");
       return;
     }
+    store.lastSentWeekKey = storeWeekKey(store);
+    recordSnapshot(store, "sent");
+    saveAndRender();
     elements.statusText.textContent = `Email draft opened for ${email} with ${DEFAULT_CC_EMAIL} copied.`;
     return;
   }
 
   window.location.href = `mailto:${encodeURIComponent(email)}?cc=${encodeURIComponent(DEFAULT_CC_EMAIL)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  store.lastSentWeekKey = storeWeekKey(store);
+  recordSnapshot(store, "sent");
+  saveAndRender();
   elements.statusText.textContent = `Email draft opened for ${email} with ${DEFAULT_CC_EMAIL} copied.`;
+}
+
+function draftForStore(store) {
+  return {
+    to: String(store.managerEmail || "").trim(),
+    cc: DEFAULT_CC_EMAIL,
+    subject: `${store.storeName || `Store ${store.storeNumber || ""}`} Weekly Premium Partnership Update`.trim(),
+    body: store.polishedEmail || buildEmail(store),
+    html: buildRichEmailHtml(store)
+  };
+}
+
+function confirmSafetyWarnings(stores) {
+  const warnings = stores.flatMap((store) => buildSafetyChecks(store)
+    .filter((check) => !check.ok)
+    .map((check) => `${store.storeName}: ${check.label}`));
+  if (!warnings.length) return true;
+  return confirm(`Pre-send review found ${warnings.length} item${warnings.length === 1 ? "" : "s"} to check:\n\n${warnings.slice(0, 10).join("\n")}\n\nCreate the draft${stores.length === 1 ? "" : "s"} anyway?`);
+}
+
+async function createActiveOutlookDraft() {
+  const store = getActiveStore();
+  if (!store) return;
+  if (!isEmailAddress(store.managerEmail)) {
+    alert("Add a valid manager email address before creating the Outlook draft.");
+    return;
+  }
+  if (!confirmSafetyWarnings([store])) return;
+  await createOutlookDraftsForStores([store]);
+}
+
+async function createAllOutlookDrafts() {
+  const readyStores = state.stores.filter((store) => isEmailAddress(store.managerEmail));
+  if (!readyStores.length) {
+    alert("Add manager email addresses before creating Outlook drafts.");
+    return;
+  }
+  const skipped = state.stores.length - readyStores.length;
+  if (skipped && !confirm(`${skipped} store${skipped === 1 ? " is" : "s are"} missing a valid manager email and will be skipped. Continue?`)) return;
+  if (!confirmSafetyWarnings(readyStores)) return;
+  await createOutlookDraftsForStores(readyStores);
+}
+
+async function createOutlookDraftsForStores(stores) {
+  const drafts = stores.map(draftForStore);
+  if (!window.weeklyEmailApp?.createOutlookDrafts) {
+    if (stores.length === 1) {
+      await sendActiveEmail();
+      return;
+    }
+    showImportError("Creating multiple Outlook drafts requires the Windows desktop app.");
+    return;
+  }
+  elements.statusText.textContent = `Creating ${drafts.length} Outlook draft${drafts.length === 1 ? "" : "s"}...`;
+  const result = await window.weeklyEmailApp.createOutlookDrafts(drafts);
+  if (!result?.ok) {
+    showImportError(result?.error || "Outlook could not create the drafts. Classic Outlook must be installed and signed in.");
+    return;
+  }
+  stores.forEach((store) => recordSnapshot(store, "draft"));
+  saveAndRender();
+  elements.statusText.textContent = `${result.count || drafts.length} Outlook draft${(result.count || drafts.length) === 1 ? "" : "s"} saved to Drafts.`;
 }
 
 async function saveActiveEmail() {
@@ -1253,10 +1882,12 @@ function backupSettings() {
   syncStoreMappingsFromForm();
   saveStoreMappings();
   const backup = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     storeMappings,
     settings: { ...defaultSettings, ...(state.settings || {}) },
+    profiles: state.profiles || [],
+    history: state.history || [],
     storeGoals: state.stores.map((store) => ({
       storeNumber: store.storeNumber || "",
       storeName: store.storeName || "",
@@ -1264,6 +1895,8 @@ function backupSettings() {
       hoursNotes: store.hoursNotes || "",
       openItems: store.openItems || "",
       featuredDeals: store.featuredDeals || "",
+      regularReps: store.regularReps || "",
+      preferredWording: store.preferredWording || "",
       metrics: (store.metrics || []).map((metric) => ({
         name: metric.name,
         goal: metric.goal,
@@ -1290,6 +1923,12 @@ async function restoreSettings(event) {
     if (backup.settings) {
       state.settings = { ...defaultSettings, ...backup.settings };
     }
+    if (Array.isArray(backup.profiles)) {
+      state.profiles = backup.profiles;
+    }
+    if (Array.isArray(backup.history)) {
+      state.history = backup.history.slice(0, MAX_HISTORY_ITEMS);
+    }
     if (Array.isArray(backup.storeGoals)) {
       restoreStoreGoals(backup.storeGoals);
     }
@@ -1313,6 +1952,8 @@ function restoreStoreGoals(storeGoals) {
     store.hoursNotes = saved.hoursNotes || store.hoursNotes || "";
     store.openItems = saved.openItems || store.openItems || "";
     store.featuredDeals = saved.featuredDeals || store.featuredDeals || "";
+    store.regularReps = saved.regularReps || store.regularReps || "";
+    store.preferredWording = saved.preferredWording || store.preferredWording || "";
     store.metrics = mergeMetricGoals(store.metrics || [], saved.metrics || []);
   });
 }
@@ -2080,6 +2721,9 @@ function normalizeStore(store) {
     hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
+    regularReps: store.regularReps || "",
+    preferredWording: store.preferredWording || "",
+    lastSentWeekKey: store.lastSentWeekKey || "",
     metrics: normalizeMetricFormats(store.metrics)
   });
 }
@@ -2277,7 +2921,13 @@ function guessMetricFormat(metricName) {
 
 function resetData() {
   if (!confirm("Reset all stores to the starter data?")) return;
-  state = { stores: structuredClone(sampleStores) };
+  state = normalizeLoadedState({
+    stores: structuredClone(sampleStores),
+    settings: state.settings,
+    profiles: state.profiles,
+    history: state.history,
+    lastSavedAt: state.lastSavedAt
+  });
   activeStoreId = state.stores[0].id;
   saveAndRender();
 }

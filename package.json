@@ -1,10 +1,11 @@
 {
   "name": "weekly-premium-email-builder",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Windows desktop app for building weekly Premium partnership emails.",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
+    "test:features": "node scripts/smoke-features.cjs",
     "read-thread": "node scripts/read-thread.cjs",
     "prebuild": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-build.ps1",
     "build": "electron-builder --win --x64 --publish never",

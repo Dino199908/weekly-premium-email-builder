@@ -2,6 +2,10 @@ const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } = require(
 const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+
+const execFileAsync = promisify(execFile);
 
 const isDev = !app.isPackaged;
 let mainWindow;
@@ -131,6 +135,32 @@ function registerIpcHandlers() {
     return { ok: true };
   });
 
+  ipcMain.handle("copy-rich-email", async (event, options = {}) => {
+    const html = String(options.html || "");
+    const text = String(options.text || "");
+    if (!html && !text) return { ok: false, error: "There is no email content to copy." };
+    clipboard.write({ html, text });
+    return { ok: true };
+  });
+
+  ipcMain.handle("create-outlook-drafts", async (event, draftOptions = []) => {
+    const drafts = (Array.isArray(draftOptions) ? draftOptions : [])
+      .slice(0, 25)
+      .map(normalizeDraft)
+      .filter((draft) => draft.to);
+    if (!drafts.length) return { ok: false, error: "No valid manager email addresses were provided." };
+
+    try {
+      const count = await saveDraftsToOutlook(drafts);
+      return { ok: true, count };
+    } catch (error) {
+      return {
+        ok: false,
+        error: `Classic Outlook could not save the drafts. Make sure Outlook is installed, signed in, and closed out of any setup screens. ${cleanProcessError(error)}`.trim()
+      };
+    }
+  });
+
   ipcMain.handle("save-text-file", async (event, options = {}) => {
     const parent = BrowserWindow.fromWebContents(event.sender);
     const defaultName = sanitizeFileName(options.defaultName || "weekly-email.txt");
@@ -169,6 +199,61 @@ function registerIpcHandlers() {
       dataUrl: image.toDataURL()
     };
   });
+}
+
+function normalizeDraft(value = {}) {
+  return {
+    to: String(value.to || "").trim(),
+    cc: String(value.cc || "").trim(),
+    subject: String(value.subject || "Weekly Premium Partnership Update").trim().slice(0, 240),
+    body: String(value.body || ""),
+    html: String(value.html || "")
+  };
+}
+
+async function saveDraftsToOutlook(drafts) {
+  const payload = Buffer.from(JSON.stringify(drafts), "utf8").toString("base64");
+  const script = `$ErrorActionPreference = 'Stop'
+$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}'))
+$drafts = ConvertFrom-Json $json
+$outlook = New-Object -ComObject Outlook.Application
+$count = 0
+foreach ($draft in @($drafts)) {
+  $mail = $outlook.CreateItem(0)
+  $mail.To = [string]$draft.to
+  $mail.CC = [string]$draft.cc
+  $mail.Subject = [string]$draft.subject
+  if ([string]$draft.html) {
+    $mail.HTMLBody = [string]$draft.html
+  } else {
+    $mail.Body = [string]$draft.body
+  }
+  $mail.Save()
+  [void][Runtime.InteropServices.Marshal]::ReleaseComObject($mail)
+  $count++
+}
+[void][Runtime.InteropServices.Marshal]::ReleaseComObject($outlook)
+[GC]::Collect()
+[GC]::WaitForPendingFinalizers()
+Write-Output "DRAFTS_CREATED=$count"`;
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  const { stdout } = await execFileAsync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-EncodedCommand",
+    encoded
+  ], {
+    windowsHide: true,
+    timeout: 60000,
+    maxBuffer: 1024 * 1024
+  });
+  const match = String(stdout || "").match(/DRAFTS_CREATED=(\d+)/);
+  return match ? Number(match[1]) : drafts.length;
+}
+
+function cleanProcessError(error) {
+  const message = String(error?.stderr || error?.message || "").replace(/\s+/g, " ").trim();
+  return message.slice(0, 320);
 }
 
 function storeMappingsPath() {
