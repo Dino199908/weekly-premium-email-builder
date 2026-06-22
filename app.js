@@ -748,7 +748,7 @@ function finalizeImportedState(imported, previousState) {
       weekEnd: store.weekEnd || previous?.weekEnd || "",
       visits: Array.isArray(previous?.visits) && previous.visits.length ? previous.visits : store.visits,
       staffingNotes: store.staffingNotes || previous?.staffingNotes || "",
-      hoursNotes: store.hoursNotes || previous?.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+      hoursNotes: previous?.hoursNotes || store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
       openItems: store.openItems || previous?.openItems || "",
       featuredDeals: store.featuredDeals || previous?.featuredDeals || "",
       regularReps: store.regularReps || previous?.regularReps || "",
@@ -756,7 +756,9 @@ function finalizeImportedState(imported, previousState) {
       lastSentWeekKey: previous?.lastSentWeekKey || "",
       metrics: mergeMetricGoals(store.metrics || [], previous?.metrics || [])
     };
-    return applyStoredProfileToStore(applyMappingToStore(merged), previousState?.profiles || state.profiles || []);
+    const profiled = applyStoredProfileToStore(applyMappingToStore(merged), previousState?.profiles || state.profiles || []);
+    if (previous?.hoursNotes) profiled.hoursNotes = previous.hoursNotes;
+    return profiled;
   });
 
   return {
@@ -1452,7 +1454,7 @@ function buildRichEmailHtml(store) {
   const optionalSections = [
     ["Staffing Update", store.staffingNotes],
     ["Location Tier Hours", store.hoursNotes],
-    ["Featured Device Deals", store.featuredDeals],
+    ["Featured Device/Carrier Deals", store.featuredDeals],
     ["Open Items / Assistance Requested", store.openItems]
   ].filter(([, body]) => cleanSentence(body)).map(([title, body]) => `<h3 style="margin:18px 0 6px;color:#173f34;font-size:14px;">${escapeHtml(title)}</h3><p style="margin:0 0 10px;color:#35413d;font-size:13px;line-height:1.55;white-space:pre-line;">${escapeHtml(cleanMultiline(body))}</p>`).join("");
   const preferred = cleanSentence(store.preferredWording);
@@ -1476,7 +1478,6 @@ function buildRichEmailHtml(store) {
       </table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #b8d8cc;background:#eff8f4;"><tr><td style="padding:12px 14px;"><strong style="display:block;color:#087b61;font-size:12px;">Focus this week</strong><span style="display:block;margin-top:4px;color:#35413d;font-size:13px;line-height:1.5;">${escapeHtml(insight.focus)}</span></td></tr></table>
       <p style="margin:18px 0 0;color:#35413d;font-size:13px;line-height:1.6;">${escapeHtml(preferred || "If you or your management team have any questions or concerns, please feel free to contact me anytime.")}</p>
-      <p style="margin:14px 0 0;color:#35413d;font-size:13px;line-height:1.6;">Thanks,<br><strong>Premium Retail Team</strong></p>
     </td></tr>
   </table>`;
 }
@@ -1491,7 +1492,7 @@ function buildOptionalEmailSections(store) {
   const sections = [
     ["Staffing Update", store.staffingNotes],
     ["Location Tier Hours", store.hoursNotes],
-    ["Featured Device Deals", store.featuredDeals],
+    ["Featured Device/Carrier Deals", store.featuredDeals],
     ["Open Items / Assistance Requested", store.openItems]
   ];
 
@@ -1844,11 +1845,7 @@ async function createAllOutlookDrafts() {
 async function createOutlookDraftsForStores(stores) {
   const drafts = stores.map(draftForStore);
   if (!window.weeklyEmailApp?.createOutlookDrafts) {
-    if (stores.length === 1) {
-      await sendActiveEmail();
-      return;
-    }
-    showImportError("Creating multiple Outlook drafts requires the Windows desktop app.");
+    showImportError("Rich Outlook drafts require the Windows desktop app. Open Weekly Premium Email Builder Latest.exe and try again.");
     return;
   }
   elements.statusText.textContent = `Creating ${drafts.length} Outlook draft${drafts.length === 1 ? "" : "s"}...`;

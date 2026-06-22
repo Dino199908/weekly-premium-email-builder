@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.26`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.27`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -53,6 +53,7 @@ The finished files will be created in `dist`.
 - Saves reusable store profiles with contacts, tier hours, representatives, preferred wording, and goals.
 - Runs seven pre-send checks for email, dates, visits, metrics, goals, notes, and saved state.
 - Creates one or all store emails directly in the Classic Outlook Drafts folder from the Windows app.
+- Keeps saved location tier hours intact when new performance reports are imported.
 - Automatically writes progress lines like `73% to goal ($2,000 remaining)`.
 - Copies one store email or all store emails.
 - Saves the current email or all store emails to `.txt` files.

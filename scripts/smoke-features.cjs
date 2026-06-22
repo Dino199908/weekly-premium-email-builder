@@ -8,6 +8,36 @@ const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const mainSource = fs.readFileSync(path.join(root, "main.cjs"), "utf8");
 const preloadSource = fs.readFileSync(path.join(root, "preload.cjs"), "utf8");
+const htmlSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+
+let exposedDesktopBridge;
+let invokedDesktopChannel;
+vm.runInNewContext(preloadSource, {
+  require: (moduleId) => {
+    assert.equal(moduleId, "electron", "sandboxed preload may only require Electron here");
+    return {
+      contextBridge: {
+        exposeInMainWorld: (name, value) => {
+          assert.equal(name, "weeklyEmailApp");
+          exposedDesktopBridge = value;
+        }
+      },
+      ipcRenderer: {
+        invoke: (channel, payload) => {
+          invokedDesktopChannel = { channel, payload };
+          return { ok: true };
+        },
+        removeAllListeners: () => {},
+        on: () => {}
+      }
+    };
+  }
+}, { filename: "preload.cjs" });
+
+assert.equal(typeof exposedDesktopBridge?.createOutlookDrafts, "function", "desktop Outlook bridge must load in the sandbox");
+exposedDesktopBridge.createOutlookDrafts([{ to: "manager@example.com", html: "<strong>Rich</strong>" }]);
+assert.equal(invokedDesktopChannel.channel, "create-outlook-drafts");
+assert.match(invokedDesktopChannel.payload[0].html, /<strong>Rich<\/strong>/);
 
 function dateInput(date) {
   const year = date.getFullYear();
@@ -100,6 +130,25 @@ assert.equal(customTierHours, "Sunday: 12-5\nMonday - Wednesday: 10-7\nThursday:
 assert.equal(context.parseTierHours(customTierHours).friSat, "9-9");
 active.hoursNotes = customTierHours;
 
+const staleProfile = {
+  ...context.buildProfileFromStore(active),
+  hoursNotes: "Sunday: 11-6\nMonday - Wednesday: 11-7\nThursday: 11-8\nFriday - Saturday: 10-8"
+};
+const importedWithDefaultHours = {
+  stores: [{
+    ...structuredClone(active),
+    hoursNotes: staleProfile.hoursNotes,
+    metrics: active.metrics.map((metric) => ({ ...metric, mtd: Number(metric.mtd) + 1 }))
+  }]
+};
+const mergedImport = context.finalizeImportedState(importedWithDefaultHours, {
+  stores: [structuredClone(active)],
+  settings: { mtdMultiplier: 10 },
+  profiles: [staleProfile],
+  history: []
+});
+assert.equal(mergedImport.stores[0].hoursNotes, customTierHours, "imports must preserve the store's saved tier hours");
+
 const checks = context.buildSafetyChecks(active);
 assert.equal(checks.length, 7, "pre-send review must have seven checks");
 assert.ok(checks.every((check) => check.ok), "complete store should pass all seven pre-send checks");
@@ -138,6 +187,8 @@ assert.match(html, /Focus this week/);
 assert.match(html, /background:#087b61/);
 assert.match(html, /Postpaid Activation/);
 assert.match(html, /Friday - Saturday: 9-9/);
+assert.match(html, /Featured Device\/Carrier Deals/);
+assert.doesNotMatch(html, /Premium Retail Team/);
 
 const snapshot = context.recordSnapshot(active, "snapshot");
 assert.equal(snapshot.metrics.length, 5);
@@ -148,6 +199,7 @@ const draft = context.draftForStore(active);
 assert.equal(draft.to, "cathy@example.com");
 assert.equal(draft.cc, "KHartley@premiumretail.com");
 assert.match(draft.html, /Weekly Partnership Update/);
+assert.equal(draft.html, html, "Outlook draft must use the rich email HTML");
 
 active.lastSentWeekKey = context.storeWeekKey(active);
 assert.equal(context.getReadiness(active).state, "sent");
@@ -157,8 +209,11 @@ assert.match(source, /createAllOutlookDrafts/);
 assert.match(source, /duplicateLastWeek/);
 assert.match(mainSource, /create-outlook-drafts/);
 assert.match(mainSource, /Outlook\.Application/);
+assert.match(mainSource, /\$mail\.HTMLBody = \[string\]\$draft\.html/);
 assert.match(mainSource, /copy-rich-email/);
 assert.match(preloadSource, /createOutlookDrafts/);
 assert.match(preloadSource, /copyRichEmail/);
+assert.doesNotMatch(preloadSource, /node:path|node:url/);
+assert.match(htmlSource, /Featured device\/carrier deals/);
 
-console.log("FEATURE_SMOKE_OK: editable tier hours, profiles, history, readiness, coaching, safety, rich email, and Outlook payloads");
+console.log("FEATURE_SMOKE_OK: import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");
