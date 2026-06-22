@@ -555,27 +555,50 @@ select:hover {
   gap: 12px;
 }
 
-.tier-hours-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px 18px;
+.tier-hours-head h3,
+.tier-hours-head p {
+  margin: 0;
 }
 
-.tier-hours-row {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+.tier-hours-head p {
+  margin-top: 3px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.tier-hours-row strong {
-  color: var(--ink);
+.tier-hours-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.tier-hours-editor label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+}
+
+.tier-hours-editor input {
+  width: 100%;
+}
+
+.tier-hours-summary {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .tier-hours-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tier-hours-editor {
+    grid-template-columns: 1fr;
+  }
 }
 
 .setup-panel {
