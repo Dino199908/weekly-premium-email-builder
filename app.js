@@ -133,6 +133,7 @@ const elements = IS_FEATURE_TEST ? {} : {
   weekEnd: document.querySelector("#weekEnd"),
   importantNotes: document.querySelector("#importantNotes"),
   helpNotes: document.querySelector("#helpNotes"),
+  newsNotes: document.querySelector("#newsNotes"),
   staffingNotes: document.querySelector("#staffingNotes"),
   hoursNotes: document.querySelector("#hoursNotes"),
   openItems: document.querySelector("#openItems"),
@@ -279,6 +280,7 @@ function normalizeLoadedState(value) {
 function normalizeSavedStore(store) {
   return {
     ...store,
+    newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
     hoursNotes: String(store.hoursNotes || "").trim() || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
@@ -747,6 +749,7 @@ function finalizeImportedState(imported, previousState) {
       weekStart: store.weekStart || previous?.weekStart || "",
       weekEnd: store.weekEnd || previous?.weekEnd || "",
       visits: Array.isArray(previous?.visits) && previous.visits.length ? previous.visits : store.visits,
+      newsNotes: store.newsNotes || previous?.newsNotes || "",
       staffingNotes: store.staffingNotes || previous?.staffingNotes || "",
       hoursNotes: previous?.hoursNotes || store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
       openItems: store.openItems || previous?.openItems || "",
@@ -829,6 +832,7 @@ function renderForm() {
   elements.weekEnd.value = store.weekEnd || "";
   elements.importantNotes.value = store.importantNotes || "";
   elements.helpNotes.value = store.helpNotes || "";
+  elements.newsNotes.value = store.newsNotes || "";
   elements.staffingNotes.value = store.staffingNotes || "";
   elements.hoursNotes.value = store.hoursNotes || "";
   elements.openItems.value = store.openItems || "";
@@ -1010,6 +1014,7 @@ function updateActiveStoreFromForm() {
   store.weekEnd = elements.weekEnd.value;
   store.importantNotes = elements.importantNotes.value;
   store.helpNotes = elements.helpNotes.value;
+  store.newsNotes = elements.newsNotes.value;
   store.staffingNotes = elements.staffingNotes.value;
   store.hoursNotes = elements.hoursNotes.value;
   store.openItems = elements.openItems.value;
@@ -1058,6 +1063,7 @@ function addStore() {
     visits: [],
     importantNotes: "",
     helpNotes: "",
+    newsNotes: "",
     staffingNotes: "",
     hoursNotes: STANDARD_TIER_HOURS_TEXT,
     openItems: "",
@@ -1211,6 +1217,7 @@ function buildHistorySnapshot(store, status = "snapshot") {
     visits: structuredClone(store.visits || []),
     importantNotes: store.importantNotes || "",
     helpNotes: store.helpNotes || "",
+    newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
     hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
@@ -1284,6 +1291,7 @@ function duplicateLastWeek() {
   }));
   store.importantNotes = latest.importantNotes || "";
   store.helpNotes = latest.helpNotes || "";
+  store.newsNotes = latest.newsNotes || "";
   store.staffingNotes = latest.staffingNotes || "";
   store.hoursNotes = latest.hoursNotes || STANDARD_TIER_HOURS_TEXT;
   store.openItems = latest.openItems || "";
@@ -1452,6 +1460,7 @@ function buildRichEmailHtml(store) {
     </tr>`;
   }).join("");
   const optionalSections = [
+    ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
     ["Location Tier Hours", store.hoursNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
@@ -1490,6 +1499,7 @@ function progressColor(percent) {
 
 function buildOptionalEmailSections(store) {
   const sections = [
+    ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
     ["Location Tier Hours", store.hoursNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
@@ -1946,6 +1956,7 @@ function backupSettings() {
     storeGoals: state.stores.map((store) => ({
       storeNumber: store.storeNumber || "",
       storeName: store.storeName || "",
+      newsNotes: store.newsNotes || "",
       staffingNotes: store.staffingNotes || "",
       hoursNotes: store.hoursNotes || "",
       openItems: store.openItems || "",
@@ -2003,6 +2014,7 @@ function restoreStoreGoals(storeGoals) {
       (saved.storeName && item.storeName === saved.storeName)
     );
     if (!store) return;
+    store.newsNotes = saved.newsNotes || store.newsNotes || "";
     store.staffingNotes = saved.staffingNotes || store.staffingNotes || "";
     store.hoursNotes = saved.hoursNotes || store.hoursNotes || "";
     store.openItems = saved.openItems || store.openItems || "";
@@ -2464,6 +2476,7 @@ function normalizeCsvImport(text) {
         visits: [],
         importantNotes: record.importantnotes || "",
         helpNotes: record.helpnotes || "",
+        newsNotes: record.newsnotes || record.news || "",
         staffingNotes: record.staffingnotes || record.staffing || "",
         hoursNotes: record.hoursnotes || record.locationhours || record.hours || STANDARD_TIER_HOURS_TEXT,
         openItems: record.openitems || record.assistancerequested || "",
@@ -2507,6 +2520,7 @@ function normalizePerformanceReport(rows, headers) {
         visits: [],
         importantNotes: buildReportNote(record, benchmark),
         helpNotes: buildHelpNote(record, benchmark),
+        newsNotes: "",
         staffingNotes: "",
         hoursNotes: STANDARD_TIER_HOURS_TEXT,
         openItems: "",
@@ -2541,6 +2555,7 @@ function normalizeOcrReport(text) {
       visits: [],
       importantNotes: buildReportNote(record, benchmark),
       helpNotes: buildHelpNote(record, benchmark),
+      newsNotes: "",
       staffingNotes: "",
       hoursNotes: STANDARD_TIER_HOURS_TEXT,
       openItems: "",
@@ -2567,6 +2582,7 @@ function ensureExpectedStores(imported) {
       visits: [],
       importantNotes: `The screenshot did not include a readable row for Store ${storeNumber}. Please review this store's numbers before sending.`,
       helpNotes: "Please review the month-to-date numbers for this store and update any unread values before sending.",
+      newsNotes: "",
       staffingNotes: "",
       hoursNotes: STANDARD_TIER_HOURS_TEXT,
       openItems: "",
@@ -2772,6 +2788,7 @@ function normalizeStore(store) {
     visits: Array.isArray(store.visits) ? store.visits : [],
     importantNotes: store.importantNotes || "",
     helpNotes: store.helpNotes || "",
+    newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
     hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",

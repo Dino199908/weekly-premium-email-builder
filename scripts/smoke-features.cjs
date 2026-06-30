@@ -63,6 +63,7 @@ const store = {
   visits: [{ date: dateInput(start), person: "Henry Stewart" }],
   importantNotes: "The team has a strong opportunity to finish the month well.",
   helpNotes: "Please keep sending qualified opportunities and supporting protection conversations.",
+  newsNotes: "New display table is live near the front of the store.",
   staffingNotes: "Coverage is set for the week.",
   hoursNotes: "Sunday: 11-6\nMonday - Wednesday: 11-7\nThursday: 11-8\nFriday - Saturday: 10-8",
   openItems: "",
@@ -187,12 +188,19 @@ assert.match(html, /Focus this week/);
 assert.match(html, /background:#087b61/);
 assert.match(html, /Postpaid Activation/);
 assert.match(html, /Friday - Saturday: 9-9/);
+assert.match(html, /News/);
+assert.match(html, /New display table is live near the front of the store\./);
 assert.match(html, /Featured Device\/Carrier Deals/);
 assert.doesNotMatch(html, /Premium Retail Team/);
+
+const textEmail = context.buildEmail(active);
+assert.match(textEmail, /News/);
+assert.match(textEmail, /New display table is live near the front of the store\./);
 
 const snapshot = context.recordSnapshot(active, "snapshot");
 assert.equal(snapshot.metrics.length, 5);
 assert.match(snapshot.emailHtml, /Weekly Partnership Update/);
+assert.equal(snapshot.newsNotes, "New display table is live near the front of the store.");
 assert.equal(context.historyForStore(active).length, 1);
 
 const draft = context.draftForStore(active);
@@ -215,5 +223,6 @@ assert.match(preloadSource, /createOutlookDrafts/);
 assert.match(preloadSource, /copyRichEmail/);
 assert.doesNotMatch(preloadSource, /node:path|node:url/);
 assert.match(htmlSource, /Featured device\/carrier deals/);
+assert.match(htmlSource, /id="newsNotes"/);
 
-console.log("FEATURE_SMOKE_OK: import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");
+console.log("FEATURE_SMOKE_OK: news notes, import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");

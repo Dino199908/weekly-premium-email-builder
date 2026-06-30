@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.27`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.28`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -44,7 +44,7 @@ The finished files will be created in `dist`.
 ## What it does
 
 - Stores four starter locations in your browser.
-- Lets you edit contact names, visits, important notes, MTD numbers, and monthly goals.
+- Lets you edit contact names, visits, important notes, News updates, MTD numbers, and monthly goals.
 - Lets you update four location tier schedules per store, with one-click standard hours: Sunday `11-6`, Monday-Wednesday `11-7`, Thursday `11-8`, and Friday-Saturday `10-8`.
 - Copies a formatted, Outlook-ready HTML email with inline goal progress bars.
 - Saves weekly store snapshots, compares metric movement, and duplicates last week's setup into the current week.
@@ -67,7 +67,7 @@ The finished files will be created in `dist`.
 - CSV/TSV files can use these simple weekly-email headers:
 
 ```csv
-store,contact,weekStart,weekEnd,visitDate,representative,importantNotes,helpNotes,metric,mtd,goal,format
+store,contact,weekStart,weekEnd,visitDate,representative,importantNotes,helpNotes,news,metric,mtd,goal,format
 ```
 
 Valid metric formats are `number`, `percent`, and `currency`.

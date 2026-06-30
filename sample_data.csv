@@ -1,6 +1,6 @@
-store,contact,weekStart,weekEnd,visitDate,representative,importantNotes,helpNotes,metric,mtd,goal,format
-Harlan,Cathy,2026-05-17,2026-05-22,2026-05-17,Henry Stewart,"Harlan has been having a rough start to the month, but I am confident that my team can get the sales turned around.","Please continue helping us focus on the team's key monthly metrics and customer opportunities.",Postpaid Activation,14,41,number
-Harlan,Cathy,2026-05-17,2026-05-22,2026-05-18,Henry Stewart,,,,Prepaid Sales,30,60,number
-Harlan,Cathy,2026-05-17,2026-05-22,2026-05-19,Shane Kelly,,,,Prepaid Activation,12,25,percent
-Harlan,Cathy,2026-05-17,2026-05-22,2026-05-20,Shane Kelly,,,,Device Protection,6.67,10,percent
-Harlan,Cathy,2026-05-17,2026-05-22,2026-05-21,Henry Stewart,,,,Accessory Sales,2431,8000,currency
+store,contact,weekStart,weekEnd,visitDate,representative,importantNotes,helpNotes,news,metric,mtd,goal,format
+Harlan,Cathy,2026-05-17,2026-05-22,2026-05-17,Henry Stewart,"Harlan has been having a rough start to the month, but I am confident that my team can get the sales turned around.","Please continue helping us focus on the team's key monthly metrics and customer opportunities.","New display table is live near the front of the store.",Postpaid Activation,14,41,number
+Harlan,Cathy,2026-05-17,2026-05-22,2026-05-18,Henry Stewart,,,,,Prepaid Sales,30,60,number
+Harlan,Cathy,2026-05-17,2026-05-22,2026-05-19,Shane Kelly,,,,,Prepaid Activation,12,25,percent
+Harlan,Cathy,2026-05-17,2026-05-22,2026-05-20,Shane Kelly,,,,,Device Protection,6.67,10,percent
+Harlan,Cathy,2026-05-17,2026-05-22,2026-05-21,Henry Stewart,,,,,Accessory Sales,2431,8000,currency
