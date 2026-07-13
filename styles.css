@@ -1674,6 +1674,27 @@ select:hover {
   justify-content: flex-end;
 }
 
+.settings-help {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-action-spacer {
+  flex: 1;
+}
+
+.outlook-settings-actions .danger-text {
+  color: #a23939;
+}
+
+.primary-email-actions select {
+  width: auto;
+  min-width: 150px;
+  padding: 9px 30px 9px 10px;
+}
+
 #emailPreview.rich-email-preview {
   min-height: 420px;
   max-height: 720px;

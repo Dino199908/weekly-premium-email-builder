@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.29`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.30`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -52,7 +52,7 @@ The finished files will be created in `dist`.
 - Creates automatic coaching insights from the strongest result, biggest gap, and needed daily pace.
 - Saves reusable store profiles with contacts, tier hours, representatives, preferred wording, and goals.
 - Runs seven pre-send checks for email, dates, visits, metrics, goals, notes, and saved state.
-- Creates one or all store emails directly in the Classic Outlook Drafts folder from the Windows app.
+- Creates one or all store emails in new Outlook, Outlook on the web, or Classic Outlook Drafts from the Windows app.
 - Keeps saved location tier hours intact when new performance reports are imported.
 - Automatically writes progress lines like `73% to goal ($2,000 remaining)`.
 - Copies one store email or all store emails.
@@ -82,4 +82,16 @@ You can paste rows copied from Excel into the Paste Store Report box and import 
 
 ## Outlook drafts
 
-`Create Outlook Draft` and `Create All Drafts` use the installed Windows version of Classic Outlook. Outlook must be installed, signed in, and past its first-run setup. The app saves messages to Drafts and never sends them automatically.
+Choose `New Outlook / Web` to save drafts directly in a Microsoft mailbox. The drafts then appear in new Outlook, Outlook on the web, and Classic Outlook. Choose `Classic Outlook` to use the installed Windows desktop client without Microsoft cloud setup. The app saves messages to Drafts and never sends them automatically.
+
+### One-time new Outlook setup
+
+New Outlook requires Microsoft permission before a desktop app can save mailbox drafts:
+
+1. Create an app registration in the [Microsoft Entra admin center](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade).
+2. Under **Authentication**, enable **Allow public client flows**.
+3. Under **API permissions**, add delegated Microsoft Graph permissions **User.Read** and **Mail.ReadWrite**. A company administrator may need to approve them.
+4. Copy the **Application (client) ID** into `Outlook Settings` in the email builder. Use `organizations` for the Organization ID unless your administrator gives you a specific Directory (tenant) ID or domain.
+5. Choose `Save & Sign In`. The app opens Microsoft's sign-in page and copies the temporary code for you.
+
+The Microsoft token cache is encrypted with Windows protection and stored only on the computer running the app. The Application ID is not a password or secret.

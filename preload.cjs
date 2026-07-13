@@ -7,12 +7,20 @@ contextBridge.exposeInMainWorld("weeklyEmailApp", {
   writeStoreMappings: (mappings) => ipcRenderer.invoke("write-store-mappings", mappings),
   openEmailDraft: (options) => ipcRenderer.invoke("open-email-draft", options),
   copyRichEmail: (options) => ipcRenderer.invoke("copy-rich-email", options),
-  createOutlookDrafts: (drafts) => ipcRenderer.invoke("create-outlook-drafts", drafts),
+  createOutlookDrafts: (options) => ipcRenderer.invoke("create-outlook-drafts", options),
+  getMicrosoftStatus: () => ipcRenderer.invoke("get-microsoft-status"),
+  saveMicrosoftSettings: (options) => ipcRenderer.invoke("save-microsoft-settings", options),
+  connectMicrosoftAccount: () => ipcRenderer.invoke("connect-microsoft-account"),
+  disconnectMicrosoftAccount: () => ipcRenderer.invoke("disconnect-microsoft-account"),
   getAIStatus: () => ipcRenderer.invoke("get-ai-status"),
   saveAIKey: (key) => ipcRenderer.invoke("save-ai-key", key),
   polishEmailWithAI: (options) => ipcRenderer.invoke("polish-email-with-ai", options),
   onUpdateStatus: (callback) => {
     ipcRenderer.removeAllListeners("update-status");
     ipcRenderer.on("update-status", (_event, message) => callback(message));
+  },
+  onMicrosoftAuthStatus: (callback) => {
+    ipcRenderer.removeAllListeners("microsoft-auth-status");
+    ipcRenderer.on("microsoft-auth-status", (_event, message) => callback(message));
   }
 });

@@ -42,6 +42,12 @@ assert.equal(typeof exposedDesktopBridge?.polishEmailWithAI, "function", "sandbo
 exposedDesktopBridge.polishEmailWithAI({ text: "Draft email", style: "professional" });
 assert.equal(invokedDesktopChannel.channel, "polish-email-with-ai");
 assert.equal(invokedDesktopChannel.payload.style, "professional");
+assert.equal(typeof exposedDesktopBridge?.getMicrosoftStatus, "function", "Microsoft account status bridge must load");
+assert.equal(typeof exposedDesktopBridge?.saveMicrosoftSettings, "function", "Microsoft settings bridge must load");
+assert.equal(typeof exposedDesktopBridge?.connectMicrosoftAccount, "function", "Microsoft sign-in bridge must load");
+exposedDesktopBridge.createOutlookDrafts({ mode: "cloud", drafts: [{ to: "manager@example.com", html: "<strong>Cloud</strong>" }] });
+assert.equal(invokedDesktopChannel.channel, "create-outlook-drafts");
+assert.equal(invokedDesktopChannel.payload.mode, "cloud");
 
 function dateInput(date) {
   const year = date.getFullYear();
@@ -221,6 +227,11 @@ assert.match(source, /createAllOutlookDrafts/);
 assert.match(source, /duplicateLastWeek/);
 assert.match(mainSource, /create-outlook-drafts/);
 assert.match(mainSource, /Outlook\.Application/);
+assert.match(mainSource, /PublicClientApplication/);
+assert.match(mainSource, /https:\/\/graph\.microsoft\.com\/v1\.0\/me\/messages/);
+assert.match(mainSource, /Mail\.ReadWrite/);
+assert.match(mainSource, /acquireTokenByDeviceCode/);
+assert.match(mainSource, /microsoft-token-cache\.bin/);
 assert.match(mainSource, /\$mail\.HTMLBody = \[string\]\$draft\.html/);
 assert.match(mainSource, /weekly-email-outlook-/);
 assert.match(mainSource, /save-drafts\.ps1/);
@@ -234,10 +245,15 @@ assert.match(mainSource, /polish-email-with-ai/);
 assert.match(preloadSource, /createOutlookDrafts/);
 assert.match(preloadSource, /copyRichEmail/);
 assert.match(preloadSource, /polishEmailWithAI/);
+assert.match(preloadSource, /getMicrosoftStatus/);
+assert.match(preloadSource, /connectMicrosoftAccount/);
 assert.doesNotMatch(preloadSource, /node:path|node:url/);
 assert.match(htmlSource, /Featured device\/carrier deals/);
 assert.match(htmlSource, /id="newsNotes"/);
 assert.match(htmlSource, /id="aiStyleSelect"/);
 assert.match(htmlSource, /id="aiSettingsDialog"/);
+assert.match(htmlSource, /id="outlookModeSelect"/);
+assert.match(htmlSource, /id="outlookSettingsDialog"/);
+assert.match(htmlSource, /New Outlook \/ Web/);
 
-console.log("FEATURE_SMOKE_OK: AI polish, encrypted key storage, news notes, long Outlook draft payloads, import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");
+console.log("FEATURE_SMOKE_OK: new Outlook cloud drafts, encrypted Microsoft sign-in, Classic Outlook fallback, AI polish, news notes, long draft payloads, import-safe tier hours, rich drafts, profiles, history, readiness, coaching, and safety");
