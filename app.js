@@ -152,6 +152,14 @@ const elements = IS_FEATURE_TEST ? {} : {
   ocrStatus: document.querySelector("#ocrStatus"),
   writerStatus: document.querySelector("#writerStatus"),
   mappingStatus: document.querySelector("#mappingStatus"),
+  polishEmailBtn: document.querySelector("#polishEmailBtn"),
+  polishAllBtn: document.querySelector("#polishAllBtn"),
+  aiStyleSelect: document.querySelector("#aiStyleSelect"),
+  aiSettingsBtn: document.querySelector("#aiSettingsBtn"),
+  aiSettingsDialog: document.querySelector("#aiSettingsDialog"),
+  aiKeyInput: document.querySelector("#aiKeyInput"),
+  aiSettingsStatus: document.querySelector("#aiSettingsStatus"),
+  saveAIKeyBtn: document.querySelector("#saveAIKeyBtn"),
   storeMappingsList: document.querySelector("#storeMappingsList"),
   screenshotDropZone: document.querySelector("#screenshotDropZone"),
   applyTierHoursBtn: document.querySelector("#applyTierHoursBtn"),
@@ -182,8 +190,10 @@ document.querySelector("#copyEmailBtn").addEventListener("click", copyActiveEmai
 document.querySelector("#copyAllBtn").addEventListener("click", copyAllEmails);
 document.querySelector("#saveEmailBtn").addEventListener("click", saveActiveEmail);
 document.querySelector("#saveAllBtn").addEventListener("click", saveAllEmails);
-document.querySelector("#polishEmailBtn").addEventListener("click", polishActiveEmail);
-document.querySelector("#polishAllBtn").addEventListener("click", polishAllEmails);
+elements.polishEmailBtn.addEventListener("click", polishActiveEmail);
+elements.polishAllBtn.addEventListener("click", polishAllEmails);
+elements.aiSettingsBtn.addEventListener("click", openAISettings);
+elements.saveAIKeyBtn.addEventListener("click", saveAIKey);
 document.querySelector("#exportBtn").addEventListener("click", exportData);
 document.querySelector("#resetBtn").addEventListener("click", resetData);
 document.querySelector("#addStoreMappingBtn").addEventListener("click", addStoreMapping);
@@ -241,6 +251,7 @@ elements.form.addEventListener("input", (event) => {
 render();
 renderStoreMappings();
 loadPersistentStoreMappings();
+initializeAIStatus();
 window.weeklyEmailApp?.onUpdateStatus?.((message) => {
   elements.statusText.textContent = message;
 });
@@ -997,7 +1008,10 @@ function metricInputValue(value) {
 
 function renderPreview() {
   const store = getActiveStore();
-  elements.emailPreview.innerHTML = buildRichEmailHtml(store);
+  const polished = store?.polishedEmail
+    ? `<section class="ai-polished-preview"><div class="ai-polished-label">AI-polished plain text</div><pre>${escapeHtml(store.polishedEmail)}</pre></section>`
+    : "";
+  elements.emailPreview.innerHTML = `${polished}${buildRichEmailHtml(store)}`;
 }
 
 function updateActiveStoreFromForm() {
@@ -1894,18 +1908,94 @@ function buildAllEmails() {
     .join("\n\n\n");
 }
 
-function polishActiveEmail() {
+async function polishActiveEmail() {
   const store = getActiveStore();
   if (!store) return;
-  store.polishedEmail = buildPolishedEmail(store);
-  saveAndRender();
-  elements.writerStatus.textContent = `${store.storeName} email polished.`;
+  setAIBusy(true);
+  elements.writerStatus.textContent = `AI is polishing ${store.storeName}...`;
+  try {
+    const fallback = buildPolishedEmail(store);
+    const result = await window.weeklyEmailApp?.polishEmailWithAI?.({
+      text: fallback,
+      style: elements.aiStyleSelect.value
+    });
+    store.polishedEmail = result?.ok ? result.text : fallback;
+    saveAndRender();
+    if (result?.ok) {
+      elements.writerStatus.textContent = `${store.storeName} was polished with AI.`;
+    } else {
+      elements.writerStatus.textContent = `Offline polish used. ${result?.error || "AI editor unavailable."}`;
+      if (result?.needsKey) openAISettings();
+    }
+  } finally {
+    setAIBusy(false);
+  }
 }
 
-function polishAllEmails() {
-  polishAllStores();
-  saveAndRender();
-  elements.writerStatus.textContent = `All ${state.stores.length} emails polished.`;
+async function polishAllEmails() {
+  setAIBusy(true);
+  let aiCount = 0;
+  try {
+    for (let index = 0; index < state.stores.length; index += 1) {
+      const store = state.stores[index];
+      elements.writerStatus.textContent = `AI is polishing ${index + 1} of ${state.stores.length}: ${store.storeName}...`;
+      const fallback = buildPolishedEmail(store);
+      const result = await window.weeklyEmailApp?.polishEmailWithAI?.({
+        text: fallback,
+        style: elements.aiStyleSelect.value
+      });
+      store.polishedEmail = result?.ok ? result.text : fallback;
+      if (result?.ok) aiCount += 1;
+      if (result?.needsKey) {
+        openAISettings();
+        break;
+      }
+    }
+    saveAndRender();
+    elements.writerStatus.textContent = aiCount === state.stores.length
+      ? `All ${state.stores.length} emails were polished with AI.`
+      : `${aiCount} of ${state.stores.length} emails used AI; the rest used offline polish.`;
+  } finally {
+    setAIBusy(false);
+  }
+}
+
+function setAIBusy(busy) {
+  elements.polishEmailBtn.disabled = busy;
+  elements.polishAllBtn.disabled = busy;
+  elements.aiStyleSelect.disabled = busy;
+}
+
+async function initializeAIStatus() {
+  const result = await window.weeklyEmailApp?.getAIStatus?.();
+  const label = result?.configured ? `AI ready (${result.model}).` : "AI needs an API key.";
+  elements.aiSettingsStatus.textContent = result?.configured
+    ? `${label} The key is encrypted and stored only on this computer.`
+    : "Add an OpenAI API key. It will be encrypted and stored only on this computer.";
+  elements.aiSettingsBtn.textContent = result?.configured ? "AI Ready" : "AI Settings";
+}
+
+function openAISettings() {
+  elements.aiKeyInput.value = "";
+  elements.aiSettingsDialog.showModal();
+}
+
+async function saveAIKey() {
+  const key = elements.aiKeyInput.value.trim();
+  elements.saveAIKeyBtn.disabled = true;
+  elements.aiSettingsStatus.textContent = "Saving securely...";
+  try {
+    const result = await window.weeklyEmailApp?.saveAIKey?.(key);
+    if (!result?.ok) {
+      elements.aiSettingsStatus.textContent = result?.error || "The API key could not be saved.";
+      return;
+    }
+    elements.aiSettingsDialog.close();
+    await initializeAIStatus();
+    elements.writerStatus.textContent = "AI editor is ready.";
+  } finally {
+    elements.saveAIKeyBtn.disabled = false;
+  }
 }
 
 function polishAllStores() {

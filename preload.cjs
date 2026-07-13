@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld("weeklyEmailApp", {
   openEmailDraft: (options) => ipcRenderer.invoke("open-email-draft", options),
   copyRichEmail: (options) => ipcRenderer.invoke("copy-rich-email", options),
   createOutlookDrafts: (drafts) => ipcRenderer.invoke("create-outlook-drafts", drafts),
+  getAIStatus: () => ipcRenderer.invoke("get-ai-status"),
+  saveAIKey: (key) => ipcRenderer.invoke("save-ai-key", key),
+  polishEmailWithAI: (options) => ipcRenderer.invoke("polish-email-with-ai", options),
   onUpdateStatus: (callback) => {
     ipcRenderer.removeAllListeners("update-status");
     ipcRenderer.on("update-status", (_event, message) => callback(message));

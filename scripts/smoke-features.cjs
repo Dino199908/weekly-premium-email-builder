@@ -38,6 +38,10 @@ assert.equal(typeof exposedDesktopBridge?.createOutlookDrafts, "function", "desk
 exposedDesktopBridge.createOutlookDrafts([{ to: "manager@example.com", html: "<strong>Rich</strong>" }]);
 assert.equal(invokedDesktopChannel.channel, "create-outlook-drafts");
 assert.match(invokedDesktopChannel.payload[0].html, /<strong>Rich<\/strong>/);
+assert.equal(typeof exposedDesktopBridge?.polishEmailWithAI, "function", "sandboxed AI editor bridge must load");
+exposedDesktopBridge.polishEmailWithAI({ text: "Draft email", style: "professional" });
+assert.equal(invokedDesktopChannel.channel, "polish-email-with-ai");
+assert.equal(invokedDesktopChannel.payload.style, "professional");
 
 function dateInput(date) {
   const year = date.getFullYear();
@@ -218,11 +222,22 @@ assert.match(source, /duplicateLastWeek/);
 assert.match(mainSource, /create-outlook-drafts/);
 assert.match(mainSource, /Outlook\.Application/);
 assert.match(mainSource, /\$mail\.HTMLBody = \[string\]\$draft\.html/);
+assert.match(mainSource, /weekly-email-outlook-/);
+assert.match(mainSource, /save-drafts\.ps1/);
+assert.match(mainSource, /drafts\.json/);
+assert.match(mainSource, /"-File"/);
+assert.doesNotMatch(mainSource, /-EncodedCommand/);
 assert.match(mainSource, /copy-rich-email/);
+assert.match(mainSource, /safeStorage\.encryptString/);
+assert.match(mainSource, /https:\/\/api\.openai\.com\/v1\/responses/);
+assert.match(mainSource, /polish-email-with-ai/);
 assert.match(preloadSource, /createOutlookDrafts/);
 assert.match(preloadSource, /copyRichEmail/);
+assert.match(preloadSource, /polishEmailWithAI/);
 assert.doesNotMatch(preloadSource, /node:path|node:url/);
 assert.match(htmlSource, /Featured device\/carrier deals/);
 assert.match(htmlSource, /id="newsNotes"/);
+assert.match(htmlSource, /id="aiStyleSelect"/);
+assert.match(htmlSource, /id="aiSettingsDialog"/);
 
-console.log("FEATURE_SMOKE_OK: news notes, import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");
+console.log("FEATURE_SMOKE_OK: AI polish, encrypted key storage, news notes, long Outlook draft payloads, import-safe tier hours, sandboxed Outlook bridge, rich drafts, email footer, labels, profiles, history, readiness, coaching, and safety");

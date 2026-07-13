@@ -1618,6 +1618,62 @@ select:hover {
   font-size: 10px;
 }
 
+.preview-utility select {
+  min-height: 30px;
+  padding: 4px 24px 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.ai-polished-preview {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #b8d8cc;
+  border-radius: 8px;
+  background: #eff8f4;
+}
+
+.ai-polished-label {
+  margin-bottom: 8px;
+  color: #087b61;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.ai-polished-preview pre {
+  margin: 0;
+  color: var(--ink);
+  white-space: pre-wrap;
+  font: 13px/1.55 "Segoe UI", sans-serif;
+}
+
+.settings-dialog {
+  width: min(500px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(12, 32, 26, .28);
+}
+
+.settings-dialog::backdrop {
+  background: rgba(12, 24, 20, .48);
+}
+
+.settings-dialog-card {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.settings-dialog-card .button-row {
+  justify-content: flex-end;
+}
+
 #emailPreview.rich-email-preview {
   min-height: 420px;
   max-height: 720px;
