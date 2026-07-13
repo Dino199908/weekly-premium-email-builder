@@ -1,6 +1,5 @@
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, safeStorage, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const { PublicClientApplication } = require("@azure/msal-node");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
@@ -8,7 +7,6 @@ const { promisify } = require("node:util");
 
 const execFileAsync = promisify(execFile);
 const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
-const MICROSOFT_SCOPES = ["User.Read", "Mail.ReadWrite"];
 
 const isDev = !app.isPackaged;
 let mainWindow;
@@ -182,46 +180,19 @@ function registerIpcHandlers() {
     return { ok: true };
   });
 
-  ipcMain.handle("get-microsoft-status", async () => getMicrosoftStatus());
-
-  ipcMain.handle("save-microsoft-settings", async (event, options = {}) => {
-    try {
-      const settings = normalizeMicrosoftSettings(options);
-      if (!isMicrosoftClientId(settings.clientId)) {
-        return { ok: false, error: "Enter the Application (client) ID from your Microsoft app registration." };
-      }
-      const previous = await readMicrosoftSettings();
-      await fs.mkdir(path.dirname(microsoftSettingsPath()), { recursive: true });
-      await fs.writeFile(microsoftSettingsPath(), JSON.stringify(settings, null, 2), "utf8");
-      if (previous.clientId !== settings.clientId || previous.tenantId !== settings.tenantId) {
-        await fs.rm(microsoftTokenCachePath(), { force: true });
-      }
-      return { ok: true, ...(await getMicrosoftStatus()) };
-    } catch (error) {
-      return { ok: false, error: cleanMicrosoftError(error) };
-    }
-  });
-
-  ipcMain.handle("connect-microsoft-account", async () => {
-    try {
-      const auth = await acquireMicrosoftToken({ interactive: true });
-      return { ok: true, signedIn: true, account: microsoftAccountLabel(auth.account) };
-    } catch (error) {
-      return { ok: false, error: cleanMicrosoftError(error) };
-    }
-  });
-
-  ipcMain.handle("disconnect-microsoft-account", async () => {
-    try {
-      await fs.rm(microsoftTokenCachePath(), { force: true });
-      return { ok: true, ...(await getMicrosoftStatus()) };
-    } catch (error) {
-      return { ok: false, error: cleanMicrosoftError(error) };
-    }
+  ipcMain.handle("open-outlook-compose", async (event, options = {}) => {
+    const draft = normalizeDraft(options);
+    if (!draft.to) return { ok: false, error: "No manager email address is saved for this store." };
+    clipboard.write({ html: draft.html, text: draft.body });
+    const query = [
+      draft.cc ? `cc=${encodeURIComponent(draft.cc)}` : "",
+      `subject=${encodeURIComponent(draft.subject)}`
+    ].filter(Boolean).join("&");
+    await shell.openExternal(`mailto:${encodeURIComponent(draft.to)}?${query}`);
+    return { ok: true };
   });
 
   ipcMain.handle("create-outlook-drafts", async (event, options = []) => {
-    const mode = Array.isArray(options) ? "classic" : options?.mode === "classic" ? "classic" : "cloud";
     const draftOptions = Array.isArray(options) ? options : options?.drafts;
     const drafts = (Array.isArray(draftOptions) ? draftOptions : [])
       .slice(0, 25)
@@ -230,19 +201,12 @@ function registerIpcHandlers() {
     if (!drafts.length) return { ok: false, error: "No valid manager email addresses were provided." };
 
     try {
-      if (mode === "cloud") {
-        const result = await saveDraftsToMicrosoftCloud(drafts);
-        return { ok: true, count: result.count, mode, account: result.account };
-      }
       const count = await saveDraftsToOutlook(drafts);
-      return { ok: true, count, mode };
+      return { ok: true, count };
     } catch (error) {
       return {
         ok: false,
-        needsMicrosoftSetup: mode === "cloud" && error?.code === "MICROSOFT_NOT_CONFIGURED",
-        error: mode === "cloud"
-          ? cleanMicrosoftError(error)
-          : `Classic Outlook could not save the drafts. Make sure Outlook is installed, signed in, and closed out of any setup screens. ${cleanProcessError(error)}`.trim()
+        error: `Classic Outlook could not save the drafts. Make sure Outlook is installed, signed in, and closed out of any setup screens. ${cleanProcessError(error)}`.trim()
       };
     }
   });
@@ -295,180 +259,6 @@ function normalizeDraft(value = {}) {
     body: String(value.body || ""),
     html: String(value.html || "")
   };
-}
-
-async function saveDraftsToMicrosoftCloud(drafts) {
-  const auth = await acquireMicrosoftToken({ interactive: true });
-  let count = 0;
-  for (const draft of drafts) {
-    const response = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${auth.accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        subject: draft.subject,
-        body: {
-          contentType: draft.html ? "HTML" : "Text",
-          content: draft.html || draft.body
-        },
-        toRecipients: microsoftRecipients(draft.to),
-        ccRecipients: microsoftRecipients(draft.cc)
-      })
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      const error = new Error(payload?.error?.message || `Microsoft could not save draft ${count + 1} (${response.status}).`);
-      error.code = payload?.error?.code || `GRAPH_${response.status}`;
-      throw error;
-    }
-    count += 1;
-  }
-  return { count, account: microsoftAccountLabel(auth.account) };
-}
-
-function microsoftRecipients(value) {
-  return String(value || "")
-    .split(/[;,]/)
-    .map((address) => address.trim())
-    .filter(Boolean)
-    .map((address) => ({ emailAddress: { address } }));
-}
-
-async function getMicrosoftStatus() {
-  const settings = await readMicrosoftSettings();
-  if (!isMicrosoftClientId(settings.clientId)) {
-    return { ok: true, configured: false, signedIn: false, clientId: settings.clientId, tenantId: settings.tenantId };
-  }
-  try {
-    const client = createMicrosoftClient(settings);
-    const accounts = await client.getTokenCache().getAllAccounts();
-    return {
-      ok: true,
-      configured: true,
-      signedIn: accounts.length > 0,
-      account: microsoftAccountLabel(accounts[0]),
-      clientId: settings.clientId,
-      tenantId: settings.tenantId
-    };
-  } catch (error) {
-    return { ok: false, configured: true, signedIn: false, clientId: settings.clientId, tenantId: settings.tenantId, error: cleanMicrosoftError(error) };
-  }
-}
-
-async function acquireMicrosoftToken({ interactive = false } = {}) {
-  const settings = await readMicrosoftSettings();
-  if (!isMicrosoftClientId(settings.clientId)) {
-    const error = new Error("Microsoft sign-in needs an Application (client) ID. Open Outlook Settings to finish setup.");
-    error.code = "MICROSOFT_NOT_CONFIGURED";
-    throw error;
-  }
-  const client = createMicrosoftClient(settings);
-  const accounts = await client.getTokenCache().getAllAccounts();
-  if (accounts[0]) {
-    try {
-      return await client.acquireTokenSilent({ account: accounts[0], scopes: MICROSOFT_SCOPES });
-    } catch (error) {
-      if (!interactive) throw error;
-    }
-  }
-  if (!interactive) {
-    const error = new Error("Sign in to Microsoft from Outlook Settings first.");
-    error.code = "MICROSOFT_SIGN_IN_REQUIRED";
-    throw error;
-  }
-  return client.acquireTokenByDeviceCode({
-    scopes: MICROSOFT_SCOPES,
-    deviceCodeCallback: (response) => {
-      clipboard.writeText(response.userCode);
-      void shell.openExternal(response.verificationUri);
-      mainWindow?.webContents.send("microsoft-auth-status", `Microsoft sign-in opened. Code ${response.userCode} was copied—paste it into the sign-in page.`);
-      void dialog.showMessageBox(mainWindow, {
-        type: "info",
-        title: "Microsoft Sign-in",
-        message: `Enter code ${response.userCode}`,
-        detail: "The code has been copied and the Microsoft sign-in page has opened in your browser. Sign in and approve access to save email drafts.",
-        buttons: ["Continue"]
-      });
-    }
-  });
-}
-
-function createMicrosoftClient(settings) {
-  return new PublicClientApplication({
-    auth: {
-      clientId: settings.clientId,
-      authority: `https://login.microsoftonline.com/${encodeURIComponent(settings.tenantId)}`
-    },
-    cache: {
-      cachePlugin: {
-        beforeCacheAccess: async (context) => {
-          if (!safeStorage.isEncryptionAvailable()) return;
-          try {
-            const encrypted = await fs.readFile(microsoftTokenCachePath());
-            context.tokenCache.deserialize(safeStorage.decryptString(encrypted));
-          } catch {
-            // No cached Microsoft account yet.
-          }
-        },
-        afterCacheAccess: async (context) => {
-          if (!context.cacheHasChanged) return;
-          if (!safeStorage.isEncryptionAvailable()) {
-            throw new Error("Windows encryption is unavailable, so the Microsoft sign-in cannot be saved securely.");
-          }
-          await fs.mkdir(path.dirname(microsoftTokenCachePath()), { recursive: true });
-          await fs.writeFile(microsoftTokenCachePath(), safeStorage.encryptString(context.tokenCache.serialize()));
-        }
-      }
-    }
-  });
-}
-
-function normalizeMicrosoftSettings(value = {}) {
-  return {
-    clientId: String(value.clientId || "").trim(),
-    tenantId: String(value.tenantId || "organizations").trim() || "organizations"
-  };
-}
-
-function isMicrosoftClientId(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
-}
-
-async function readMicrosoftSettings() {
-  const environment = normalizeMicrosoftSettings({
-    clientId: process.env.MICROSOFT_CLIENT_ID,
-    tenantId: process.env.MICROSOFT_TENANT_ID
-  });
-  if (environment.clientId) return environment;
-  try {
-    return normalizeMicrosoftSettings(JSON.parse(await fs.readFile(microsoftSettingsPath(), "utf8")));
-  } catch {
-    return normalizeMicrosoftSettings();
-  }
-}
-
-function microsoftSettingsPath() {
-  return path.join(app.getPath("userData"), "microsoft-settings.json");
-}
-
-function microsoftTokenCachePath() {
-  return path.join(app.getPath("userData"), "microsoft-token-cache.bin");
-}
-
-function microsoftAccountLabel(account) {
-  return String(account?.username || account?.name || "").trim();
-}
-
-function cleanMicrosoftError(error) {
-  const code = String(error?.code || "");
-  if (code === "MICROSOFT_NOT_CONFIGURED") return error.message;
-  if (/authorization_pending|user_canceled|device_code/i.test(code)) return "Microsoft sign-in was not completed. Try again when you are ready.";
-  if (/consent|unauthorized|access_denied/i.test(`${code} ${error?.message || ""}`)) {
-    return "Microsoft did not approve mailbox access. Your Microsoft 365 administrator may need to approve Mail.ReadWrite permission.";
-  }
-  return String(error?.message || "Microsoft Outlook is unavailable right now.").replace(/\s+/g, " ").trim().slice(0, 420);
 }
 
 async function saveDraftsToOutlook(drafts) {

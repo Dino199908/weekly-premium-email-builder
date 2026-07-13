@@ -1,6 +1,6 @@
 {
   "name": "weekly-premium-email-builder",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "description": "Windows desktop app for building weekly Premium partnership emails.",
   "main": "main.cjs",
   "scripts": {
@@ -55,7 +55,6 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
-    "@azure/msal-node": "^3.8.10",
     "@tesseract.js-data/eng": "^1.0.0",
     "electron-updater": "^6.8.3",
     "tesseract.js": "^5.1.1",

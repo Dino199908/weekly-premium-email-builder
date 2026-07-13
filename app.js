@@ -4,7 +4,7 @@ const DEFAULT_CC_EMAIL = "KHartley@premiumretail.com";
 const MAX_HISTORY_ITEMS = 40;
 const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1),
-  outlookMode: "cloud"
+  outlookMode: "compose"
 };
 
 const STANDARD_TIER_HOURS = [
@@ -122,6 +122,7 @@ const IS_FEATURE_TEST = globalThis.__WEEKLY_EMAIL_FEATURE_TEST__ === true;
 let state = loadState();
 let activeStoreId = state.stores[0]?.id;
 let storeMappings = loadStoreMappings();
+let outlookComposeQueue = [];
 
 const elements = IS_FEATURE_TEST ? {} : {
   tabs: document.querySelector("#storeTabs"),
@@ -162,13 +163,8 @@ const elements = IS_FEATURE_TEST ? {} : {
   aiSettingsStatus: document.querySelector("#aiSettingsStatus"),
   saveAIKeyBtn: document.querySelector("#saveAIKeyBtn"),
   outlookModeSelect: document.querySelector("#outlookModeSelect"),
-  outlookSettingsBtn: document.querySelector("#outlookSettingsBtn"),
-  outlookSettingsDialog: document.querySelector("#outlookSettingsDialog"),
-  outlookSettingsStatus: document.querySelector("#outlookSettingsStatus"),
-  microsoftClientIdInput: document.querySelector("#microsoftClientIdInput"),
-  microsoftTenantIdInput: document.querySelector("#microsoftTenantIdInput"),
-  saveMicrosoftSettingsBtn: document.querySelector("#saveMicrosoftSettingsBtn"),
-  disconnectMicrosoftBtn: document.querySelector("#disconnectMicrosoftBtn"),
+  createOutlookDraftLabel: document.querySelector("#createOutlookDraftLabel"),
+  createAllDraftsLabel: document.querySelector("#createAllDraftsLabel"),
   storeMappingsList: document.querySelector("#storeMappingsList"),
   screenshotDropZone: document.querySelector("#screenshotDropZone"),
   applyTierHoursBtn: document.querySelector("#applyTierHoursBtn"),
@@ -203,9 +199,6 @@ elements.polishEmailBtn.addEventListener("click", polishActiveEmail);
 elements.polishAllBtn.addEventListener("click", polishAllEmails);
 elements.aiSettingsBtn.addEventListener("click", openAISettings);
 elements.saveAIKeyBtn.addEventListener("click", saveAIKey);
-elements.outlookSettingsBtn.addEventListener("click", openOutlookSettings);
-elements.saveMicrosoftSettingsBtn.addEventListener("click", saveMicrosoftSettingsAndConnect);
-elements.disconnectMicrosoftBtn.addEventListener("click", disconnectMicrosoftAccount);
 elements.outlookModeSelect.addEventListener("change", updateOutlookMode);
 document.querySelector("#exportBtn").addEventListener("click", exportData);
 document.querySelector("#resetBtn").addEventListener("click", resetData);
@@ -265,13 +258,8 @@ render();
 renderStoreMappings();
 loadPersistentStoreMappings();
 initializeAIStatus();
-initializeMicrosoftStatus();
 window.weeklyEmailApp?.onUpdateStatus?.((message) => {
   elements.statusText.textContent = message;
-});
-window.weeklyEmailApp?.onMicrosoftAuthStatus?.((message) => {
-  elements.statusText.textContent = message;
-  elements.outlookSettingsStatus.textContent = message;
 });
 }
 
@@ -472,7 +460,8 @@ function render() {
 
 function renderImportSettings() {
   elements.mtdMultiplier.value = state.settings?.mtdMultiplier || defaultSettings.mtdMultiplier;
-  elements.outlookModeSelect.value = state.settings?.outlookMode === "classic" ? "classic" : "cloud";
+  elements.outlookModeSelect.value = state.settings?.outlookMode === "classic" ? "classic" : "compose";
+  renderOutlookActions();
   elements.multiplierStatus.textContent = `Prepaid Sales, Prepaid Activation, and Accessory Sales use x${elements.mtdMultiplier.value || defaultSettings.mtdMultiplier} when importing PSPD values.`;
 }
 
@@ -1870,10 +1859,19 @@ async function createActiveOutlookDraft() {
     return;
   }
   if (!confirmSafetyWarnings([store])) return;
+  if (elements.outlookModeSelect.value !== "classic") {
+    outlookComposeQueue = [];
+    await openStoreInNewOutlook(store);
+    return;
+  }
   await createOutlookDraftsForStores([store]);
 }
 
 async function createAllOutlookDrafts() {
+  if (elements.outlookModeSelect.value !== "classic" && outlookComposeQueue.length) {
+    await openNextNewOutlookDraft();
+    return;
+  }
   const readyStores = state.stores.filter((store) => isEmailAddress(store.managerEmail));
   if (!readyStores.length) {
     alert("Add manager email addresses before creating Outlook drafts.");
@@ -1882,7 +1880,43 @@ async function createAllOutlookDrafts() {
   const skipped = state.stores.length - readyStores.length;
   if (skipped && !confirm(`${skipped} store${skipped === 1 ? " is" : "s are"} missing a valid manager email and will be skipped. Continue?`)) return;
   if (!confirmSafetyWarnings(readyStores)) return;
+  if (elements.outlookModeSelect.value !== "classic") {
+    outlookComposeQueue = [...readyStores];
+    await openNextNewOutlookDraft();
+    return;
+  }
   await createOutlookDraftsForStores(readyStores);
+}
+
+async function openNextNewOutlookDraft() {
+  const store = outlookComposeQueue.shift();
+  if (!store) {
+    renderOutlookActions();
+    return;
+  }
+  const opened = await openStoreInNewOutlook(store);
+  if (!opened) outlookComposeQueue.unshift(store);
+  renderOutlookActions();
+}
+
+async function openStoreInNewOutlook(store) {
+  if (!window.weeklyEmailApp?.openOutlookCompose) {
+    showImportError("Opening new Outlook requires the Windows desktop app. Open Weekly Premium Email Builder Latest.exe and try again.");
+    return false;
+  }
+  elements.statusText.textContent = `Copying ${store.storeName} and opening new Outlook...`;
+  const result = await window.weeklyEmailApp.openOutlookCompose(draftForStore(store));
+  if (!result?.ok) {
+    showImportError(result?.error || "New Outlook could not open the email.");
+    return false;
+  }
+  recordSnapshot(store, "draft");
+  saveAndRender();
+  const remaining = outlookComposeQueue.length
+    ? ` Return here and choose Open Next Draft for the remaining ${outlookComposeQueue.length}.`
+    : "";
+  elements.statusText.textContent = `${store.storeName} is copied. Press Ctrl+V in the Outlook message; Outlook will save it as a draft.${remaining}`;
+  return true;
 }
 
 async function createOutlookDraftsForStores(stores) {
@@ -1891,91 +1925,38 @@ async function createOutlookDraftsForStores(stores) {
     showImportError("Rich Outlook drafts require the Windows desktop app. Open Weekly Premium Email Builder Latest.exe and try again.");
     return;
   }
-  const mode = elements.outlookModeSelect.value === "classic" ? "classic" : "cloud";
-  const destination = mode === "cloud" ? "Microsoft mailbox" : "Classic Outlook";
-  elements.statusText.textContent = `Creating ${drafts.length} draft${drafts.length === 1 ? "" : "s"} in ${destination}...`;
-  const result = await window.weeklyEmailApp.createOutlookDrafts({ drafts, mode });
+  elements.statusText.textContent = `Creating ${drafts.length} draft${drafts.length === 1 ? "" : "s"} in Classic Outlook...`;
+  const result = await window.weeklyEmailApp.createOutlookDrafts(drafts);
   if (!result?.ok) {
-    if (result?.needsMicrosoftSetup) await openOutlookSettings();
     showImportError(result?.error || "Outlook could not create the drafts.");
     return;
   }
   stores.forEach((store) => recordSnapshot(store, "draft"));
   saveAndRender();
-  const accountLabel = result.account ? ` for ${result.account}` : "";
-  elements.statusText.textContent = `${result.count || drafts.length} Outlook draft${(result.count || drafts.length) === 1 ? "" : "s"} saved to Drafts${accountLabel}.`;
+  elements.statusText.textContent = `${result.count || drafts.length} Outlook draft${(result.count || drafts.length) === 1 ? "" : "s"} saved to Drafts.`;
 }
 
 function updateOutlookMode() {
+  outlookComposeQueue = [];
   state.settings = {
     ...defaultSettings,
     ...(state.settings || {}),
-    outlookMode: elements.outlookModeSelect.value === "classic" ? "classic" : "cloud"
+    outlookMode: elements.outlookModeSelect.value === "classic" ? "classic" : "compose"
   };
   saveWithoutRender();
-  const label = state.settings.outlookMode === "cloud" ? "New Outlook / Web" : "Classic Outlook";
+  renderOutlookActions();
+  const label = state.settings.outlookMode === "compose" ? "New Outlook without sign-in" : "Classic Outlook";
   elements.statusText.textContent = `Outlook drafts will use ${label}.`;
 }
 
-async function initializeMicrosoftStatus() {
-  const result = await window.weeklyEmailApp?.getMicrosoftStatus?.();
-  if (!result) return;
-  elements.microsoftClientIdInput.value = result.clientId || "";
-  elements.microsoftTenantIdInput.value = result.tenantId || "organizations";
-  if (result.signedIn) {
-    elements.outlookSettingsStatus.textContent = `Connected as ${result.account || "your Microsoft account"}. Drafts will be saved to this mailbox.`;
-    elements.outlookSettingsBtn.textContent = "Outlook Connected";
-    elements.disconnectMicrosoftBtn.hidden = false;
-  } else if (result.configured) {
-    elements.outlookSettingsStatus.textContent = result.error || "Microsoft setup is saved. Sign in to connect your mailbox.";
-    elements.outlookSettingsBtn.textContent = "Outlook Sign In";
-    elements.disconnectMicrosoftBtn.hidden = true;
-  } else {
-    elements.outlookSettingsStatus.textContent = "Add your Microsoft Application ID, then sign in to save drafts in new Outlook and Outlook on the web.";
-    elements.outlookSettingsBtn.textContent = "Outlook Settings";
-    elements.disconnectMicrosoftBtn.hidden = true;
-  }
-}
-
-async function openOutlookSettings() {
-  await initializeMicrosoftStatus();
-  if (!elements.outlookSettingsDialog.open) elements.outlookSettingsDialog.showModal();
-}
-
-async function saveMicrosoftSettingsAndConnect() {
-  elements.saveMicrosoftSettingsBtn.disabled = true;
-  elements.outlookSettingsStatus.textContent = "Saving Microsoft settings...";
-  try {
-    const saved = await window.weeklyEmailApp?.saveMicrosoftSettings?.({
-      clientId: elements.microsoftClientIdInput.value.trim(),
-      tenantId: elements.microsoftTenantIdInput.value.trim() || "organizations"
-    });
-    if (!saved?.ok) {
-      elements.outlookSettingsStatus.textContent = saved?.error || "Microsoft settings could not be saved.";
-      return;
-    }
-    elements.outlookSettingsStatus.textContent = "Opening Microsoft sign-in...";
-    const connected = await window.weeklyEmailApp?.connectMicrosoftAccount?.();
-    if (!connected?.ok) {
-      elements.outlookSettingsStatus.textContent = connected?.error || "Microsoft sign-in was not completed.";
-      return;
-    }
-    elements.outlookSettingsDialog.close();
-    await initializeMicrosoftStatus();
-    elements.statusText.textContent = `Microsoft Outlook connected as ${connected.account || "your account"}.`;
-  } finally {
-    elements.saveMicrosoftSettingsBtn.disabled = false;
-  }
-}
-
-async function disconnectMicrosoftAccount() {
-  const result = await window.weeklyEmailApp?.disconnectMicrosoftAccount?.();
-  if (!result?.ok) {
-    elements.outlookSettingsStatus.textContent = result?.error || "The Microsoft account could not be disconnected.";
-    return;
-  }
-  await initializeMicrosoftStatus();
-  elements.statusText.textContent = "Microsoft Outlook account disconnected from this app.";
+function renderOutlookActions() {
+  const classic = elements.outlookModeSelect.value === "classic";
+  elements.createOutlookDraftLabel.textContent = classic ? "Create Outlook Draft" : "Open in New Outlook";
+  elements.createAllDraftsLabel.textContent = classic
+    ? "Create All Drafts"
+    : outlookComposeQueue.length
+      ? `Open Next Draft (${outlookComposeQueue.length})`
+      : "Start All Drafts";
 }
 
 async function saveActiveEmail() {
