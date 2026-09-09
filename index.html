@@ -60,6 +60,10 @@
                     <section class="band import-band">
                       <div class="section-head"><div><h2>Import Performance</h2><p>Bring in the latest report and refresh every draft.</p></div><button id="pasteImportBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="12" height="16" rx="2"></rect><path d="M9 3h6v4H9z"></path><path d="M9 12h6M9 16h4"></path></svg>Paste Report Rows</button></div>
                       <div id="screenshotDropZone" class="drop-zone" tabindex="0" role="button" aria-label="Paste screenshot or import Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 15v5h14v-5"></path></svg><strong>Paste screenshot or import Excel</strong><span>Press Ctrl+V for a screenshot, or choose Import Excel above.</span></div>
+                      <div class="report-period-fields">
+                        <label>Import into<select id="importPeriod"><option value="current">This month</option><option value="previous">Last month</option></select></label>
+                        <label>Results through<input id="reportAsOf" type="date" required></label>
+                      </div>
                       <pre id="reportPreview" class="report-preview">Recognized report rows will appear here after a valid paste.</pre>
                       <div class="import-status-grid"><div><span class="status-label">Import</span><p id="ocrStatus" class="status-line">Waiting for a screenshot or report paste.</p></div><div><span class="status-label">Smart Writer</span><p id="writerStatus" class="status-line">Ready to draft store emails.</p></div><label class="multiplier-control">MTD multiplier<input id="mtdMultiplier" type="number" min="1" max="31" step="1"></label></div>
                       <p id="multiplierStatus" class="sr-only">Prepaid Sales, Prepaid Activation, and Accessory Sales use this multiplier when importing PSPD values.</p>

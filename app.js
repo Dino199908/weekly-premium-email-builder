@@ -4,6 +4,8 @@ const DEFAULT_CC_EMAIL = "KHartley@premiumretail.com";
 const MAX_HISTORY_ITEMS = 240;
 const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1),
+  importPeriod: "current",
+  reportAsOf: "",
   outlookMode: "compose"
 };
 
@@ -72,7 +74,7 @@ const reportMetricKeys = [
 ];
 
 const emailMetricColumns = [
-  { defaultIndex: 0, sourceKeys: ["postpaidactivation", "postacts"] },
+  { defaultIndex: 0, sourceKeys: ["postpaidactivation", "postacts", "postpspd"] },
   { defaultIndex: 1, sourceKeys: ["prepaidsales", "preunits", "preunitspspd"], multiplyDailyPace: true },
   { defaultIndex: 2, sourceKeys: ["preactspspd", "prepaidactivation", "preacts"], multiplyDailyPace: true },
   { defaultIndex: 3, sourceKeys: ["deviceprotection", "totalprotectrate"] },
@@ -166,6 +168,8 @@ const elements = IS_FEATURE_TEST ? {} : {
   reportPreview: document.querySelector("#reportPreview"),
   importReview: document.querySelector("#importReview"),
   mtdMultiplier: document.querySelector("#mtdMultiplier"),
+  importPeriod: document.querySelector("#importPeriod"),
+  reportAsOf: document.querySelector("#reportAsOf"),
   multiplierStatus: document.querySelector("#multiplierStatus"),
   ocrStatus: document.querySelector("#ocrStatus"),
   writerStatus: document.querySelector("#writerStatus"),
@@ -195,6 +199,8 @@ const elements = IS_FEATURE_TEST ? {} : {
 };
 
 if (!IS_FEATURE_TEST) {
+elements.importPeriod.addEventListener("change", updateReportPeriod);
+elements.reportAsOf.addEventListener("change", updateReportPeriod);
 document.querySelector("#pasteScreenshotBtn").addEventListener("click", pasteScreenshotFromClipboard);
 document.querySelector("#addStoreBtn").addEventListener("click", addStore);
 document.querySelector("#addVisitBtn").addEventListener("click", addVisit);
@@ -481,16 +487,33 @@ function render() {
 }
 
 function renderImportSettings() {
+  elements.importPeriod.value = state.settings.importPeriod || "current";
+  elements.reportAsOf.value = state.settings.reportAsOf || "";
   elements.mtdMultiplier.value = state.settings?.mtdMultiplier || defaultSettings.mtdMultiplier;
   elements.outlookModeSelect.value = state.settings?.outlookMode === "classic" ? "classic" : "compose";
   renderOutlookActions();
-  elements.multiplierStatus.textContent = `Prepaid Sales, Prepaid Activation, and Accessory Sales use x${elements.mtdMultiplier.value || defaultSettings.mtdMultiplier} when importing PSPD values.`;
+  elements.multiplierStatus.textContent = `PSPD values use ${elements.mtdMultiplier.value} reporting days. Totals and protection percentages are not multiplied.`;
+}
+
+function updateReportPeriod(event) {
+  const settings = state.settings;
+  settings.importPeriod = elements.importPeriod.value;
+  if (event.target === elements.importPeriod) {
+    const date = new Date();
+    if (settings.importPeriod === "previous") date.setDate(0);
+    else date.setDate(Math.max(1, date.getDate() - 1));
+    elements.reportAsOf.value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  settings.reportAsOf = elements.reportAsOf.value;
+  if (settings.reportAsOf) settings.mtdMultiplier = Number(settings.reportAsOf.slice(-2));
+  saveWithoutRender();
+  renderImportSettings();
 }
 
 function updateMtdMultiplier() {
   const value = Math.max(Number(elements.mtdMultiplier.value || defaultSettings.mtdMultiplier), 1);
   state.settings = { ...defaultSettings, ...(state.settings || {}), mtdMultiplier: value };
-  elements.multiplierStatus.textContent = `Prepaid Sales, Prepaid Activation, and Accessory Sales use x${value} when importing PSPD values.`;
+  elements.multiplierStatus.textContent = `PSPD values use ${value} reporting days. Totals and protection percentages are not multiplied.`;
   saveWithoutRender();
 }
 
@@ -777,6 +800,7 @@ function monthlyHistoryForStore(store) {
     }
   });
 
+  Object.entries(store.monthlyReports || {}).forEach(([month, report]) => latestByMonth.set(month, report));
   return [...latestByMonth.entries()]
     .map(([monthKey, item]) => ({
       ...item,
@@ -807,6 +831,7 @@ function historySortValue(item) {
 }
 
 function historyStatusLabel(status) {
+  if (status === "imported") return "Imported";
   if (status === "sent") return "Sent";
   if (status === "draft") return "Drafted";
   return "Snapshot";
@@ -847,10 +872,26 @@ function reviewValue(metric) {
 
 function finalizeImportedState(imported, previousState) {
   const previousStores = previousState?.stores || [];
+  const settings = previousState?.settings || state.settings;
+  if (!settings.reportAsOf && !IS_FEATURE_TEST) throw new Error("Choose the report's results-through date before importing.");
+  const asOf = settings.reportAsOf;
+  const month = asOf?.slice(0, 7);
   const stores = (imported.stores || []).map((store) => {
     const previous = findPreviousStore(store, previousStores);
+    if (store.missingReportRow && previous) return previous;
+    const reports = { ...(previous?.monthlyReports || {}) };
+    if (month && !store.missingReportRow) reports[month] = {
+      asOf, days: Number(settings.mtdMultiplier), metrics: structuredClone(store.metrics),
+      storeNumber: store.storeNumber, storeName: store.storeName,
+      weekEnd: asOf, createdAt: new Date().toISOString(), status: "imported"
+    };
+    if (settings.importPeriod === "previous") {
+      return { ...(previous || { ...store, metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 })) }), monthlyReports: reports, polishedEmail: "" };
+    }
     const merged = {
       ...store,
+      monthlyReports: reports,
+      currentReport: month && !store.missingReportRow ? { month, asOf, days: Number(settings.mtdMultiplier) } : previous?.currentReport,
       managerEmail: store.managerEmail || previous?.managerEmail || "",
       weekStart: store.weekStart || previous?.weekStart || "",
       weekEnd: store.weekEnd || previous?.weekEnd || "",
@@ -873,6 +914,8 @@ function finalizeImportedState(imported, previousState) {
   return {
     ...previousState,
     ...imported,
+    lastImportedCount: (imported.stores || []).filter((store) => !store.missingReportRow).length,
+    lastImportWarnings: imported.importWarnings || [],
     stores: [...stores, ...previousStores.filter((previous) => !findPreviousStore(previous, stores))],
     settings: { ...defaultSettings, ...(previousState?.settings || state.settings || {}) },
     lastImportReview: buildImportReviewRows(stores),
@@ -1483,6 +1526,7 @@ function buildRichEmailHtml(store) {
     </tr>`;
   }).join("");
   const optionalSections = [
+    ["Monthly Performance", buildMonthlyComparison(store)],
     ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
@@ -1521,6 +1565,7 @@ function progressColor(percent) {
 
 function buildOptionalEmailSections(store) {
   const sections = [
+    ["Monthly Performance", buildMonthlyComparison(store)],
     ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
@@ -1534,6 +1579,40 @@ function buildOptionalEmailSections(store) {
     })
     .filter(Boolean)
     .join("\n\n");
+}
+
+function buildMonthlyComparison(store) {
+  const current = store.currentReport;
+  const reports = store.monthlyReports || {};
+  if (!current) {
+    const months = Object.keys(reports).sort();
+    const last = reports[months.at(-1)];
+    return last ? `${formatHistoryMonth(months.at(-1))} results through ${last.asOf}:\n${last.metrics.map((metric) => `${metric.name}: ${formatValue(metric.mtd, metric.format)}`).join("\n")}\nThis month's report has not been imported yet. PSPD-derived totals are estimates.` : "";
+  }
+  const [year, month] = current.month.split("-").map(Number);
+  const priorDate = new Date(year, month - 2, 1);
+  const priorKey = `${priorDate.getFullYear()}-${String(priorDate.getMonth() + 1).padStart(2, "0")}`;
+  const prior = reports[priorKey];
+  const monthDays = new Date(year, month, 0).getDate();
+  const lines = [`${formatHistoryMonth(current.month)} results through ${current.asOf} (${current.days} reporting days).`];
+  if (prior) lines.push(`Last month: ${formatHistoryMonth(priorKey)}, through ${prior.asOf}.`);
+  else lines.push("Last month's report has not been imported yet.");
+  for (const metric of store.metrics) {
+    const previous = prior?.metrics.find((item) => item.name === metric.name);
+    let line = `${metric.name}: ${formatValue(metric.mtd, metric.format)} this month`;
+    if (previous) line += `; ${formatValue(previous.mtd, previous.format)} last month`;
+    if (metric.format !== "percent" && current.days > 0) {
+      const trend = Number(metric.mtd) / current.days * monthDays;
+      line += `; projected month-end ${formatValue(metric.format === "number" ? Math.round(trend) : trend, metric.format)}`;
+      if (previous && Number(previous.mtd) > 0 && prior.days > 0) {
+        const change = (Number(metric.mtd) / current.days / (Number(previous.mtd) / prior.days) - 1) * 100;
+        line += ` (${Math.abs(change).toFixed(1)}% ${change >= 0 ? "higher" : "lower"} daily pace)`;
+      }
+    }
+    lines.push(`${line}.`);
+  }
+  lines.push("PSPD-derived totals and month-end projections are estimates based on reported daily averages; projections are not guaranteed.");
+  return lines.join("\n");
 }
 
 function buildPolishedSummary(store) {
@@ -2239,9 +2318,9 @@ async function importData(event) {
     polishAllStores();
     saveAndRender();
     if (importKind === "Excel file") {
-      setReportPreview(`${file.name} loaded.\n${state.stores.length} store${state.stores.length === 1 ? "" : "s"} imported from Excel.`);
+      setReportPreview(`${file.name} loaded.\n${state.lastImportedCount} stores imported from Excel.`);
     }
-    elements.ocrStatus.textContent = `${importKind} loaded: ${state.stores.length} store${state.stores.length === 1 ? "" : "s"} imported.`;
+    elements.ocrStatus.textContent = `${importKind} loaded: ${state.lastImportedCount} stores for ${formatHistoryMonth(state.settings.reportAsOf.slice(0, 7))}. ${(state.lastImportWarnings || []).join(" ")}`;
     elements.writerStatus.textContent = `Smart Writer drafted ${state.stores.length} store email${state.stores.length === 1 ? "" : "s"}.`;
   } catch (error) {
     showImportError(error);
@@ -2285,6 +2364,10 @@ function blockReportPreviewDrop(event) {
 }
 
 function importReportTextAndPolish(text) {
+  if (!state.settings.reportAsOf) {
+    showImportError("Choose the report's results-through date before importing.");
+    return;
+  }
   syncStoreMappingsFromForm();
   saveStoreMappings();
 
@@ -2299,7 +2382,7 @@ function importReportTextAndPolish(text) {
   polishAllStores();
   setReportPreview(text);
   saveAndRender();
-  elements.writerStatus.textContent = `Imported and polished ${state.stores.length} store email${state.stores.length === 1 ? "" : "s"}.`;
+  elements.writerStatus.textContent = `Loaded ${state.lastImportedCount} stores for ${formatHistoryMonth(state.settings.reportAsOf.slice(0, 7))}. Emails updated.`;
 }
 
 async function handleClipboardPaste(event) {
@@ -2468,7 +2551,7 @@ async function importImageAndPolish(file) {
   });
 
   elements.writerStatus.textContent = `Smart Writer drafted ${imported.stores.length} store email${imported.stores.length === 1 ? "" : "s"}.`;
-  elements.ocrStatus.textContent = `Screenshot imported and polished: ${imported.stores.length} store row${imported.stores.length === 1 ? "" : "s"} found.`;
+  elements.ocrStatus.textContent = `Screenshot loaded: ${imported.lastImportedCount} stores for ${formatHistoryMonth(state.settings.reportAsOf.slice(0, 7))}. ${(imported.lastImportWarnings || []).join(" ")}`;
   return imported;
 }
 
@@ -2480,25 +2563,31 @@ async function normalizeImageImport(file) {
   elements.ocrStatus.textContent = "Reading screenshot... this can take 10 to 30 seconds.";
   const image = await prepareImageForOcr(file);
   const ocrAssets = getOcrAssetPaths();
-  const result = await Tesseract.recognize(image, "eng", {
+  const worker = await Tesseract.createWorker("eng", 1, {
     workerPath: ocrAssets.workerPath,
     corePath: ocrAssets.corePath,
     langPath: ocrAssets.langPath,
-    tessedit_pageseg_mode: "6",
-    preserve_interword_spaces: "1",
     logger: (event) => {
       if (event.status === "recognizing text") {
         elements.ocrStatus.textContent = `Reading screenshot... ${Math.round(event.progress * 100)}%`;
       }
     }
   });
+  let result;
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1", ...(image.reportColumns?.length >= 10 ? { tessedit_char_whitelist: "0123456789.$%,- " } : {}) });
+    result = await worker.recognize(image);
+    result.gridReport = await readGridCells(worker, image, result.data.words);
+  } finally {
+    await worker.terminate();
+  }
 
   const text = result.data.text.trim();
   if (!text) {
     throw new Error("I could not read text from that screenshot. Try a sharper screenshot or upload the CSV export.");
   }
 
-  const imported = normalizeTextReportImport(text);
+  const imported = result.gridReport || readGridReport(result.data.words, image.reportColumns) || normalizeTextReportImport(text);
   if (!imported.stores.length) {
     clearReportPreview();
     throw new Error("The screenshot text was too small or blurry for OCR to read the store table. Zoom the report larger, copy a full-width screenshot, or paste the copied Excel/report rows instead.");
@@ -2519,8 +2608,9 @@ function getOcrAssetPaths() {
 
 async function prepareImageForOcr(file) {
   const image = await loadImage(file);
-  const scale = Math.min(Math.max(4200 / image.width, 2), 6);
+  const scale = Math.min(Math.max(Math.ceil(4200 / image.width), 3), 6);
   const canvas = document.createElement("canvas");
+  canvas.reportColumns = detectReportColumns(image).map((x) => x * scale);
   canvas.width = Math.round(image.width * scale);
   canvas.height = Math.round(image.height * scale);
 
@@ -2538,7 +2628,7 @@ async function prepareImageForOcr(file) {
     const blue = pixels.data[index + 2];
     const gray = (red * 0.299) + (green * 0.587) + (blue * 0.114);
     const saturation = Math.max(red, green, blue) - Math.min(red, green, blue);
-    let boosted = ((gray - 128) * 1.85) + 128;
+    let boosted = Math.max(red, green, blue) > 180 ? 255 : 0;
 
     if (gray > 235 && saturation < 45) boosted = 255;
     if (gray < 95) boosted = 0;
@@ -2549,7 +2639,92 @@ async function prepareImageForOcr(file) {
     pixels.data[index + 2] = boosted;
   }
   context.putImageData(pixels, 0, 0);
+  if ([10, 20, 22].includes(canvas.reportColumns.length)) {
+    context.fillStyle = "white";
+    context.fillRect(canvas.reportColumns[1], 0, canvas.reportColumns[2] - canvas.reportColumns[1], canvas.height);
+  }
   return canvas;
+}
+
+function detectReportColumns(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0);
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const start = Math.floor(canvas.height * 0.15);
+  const end = canvas.height - 3;
+  const columns = [];
+  for (let x = 0; x < canvas.width; x++) {
+    let hits = 0;
+    for (let y = start; y < end; y++) {
+      const i = (y * canvas.width + x) * 4;
+      const values = [data[i], data[i + 1], data[i + 2]];
+      if (Math.min(...values) >= 160 && Math.max(...values) < 235 && Math.max(...values) - Math.min(...values) < 30) hits++;
+    }
+    if (hits / (end - start) > 0.8 && (!columns.length || x - columns.at(-1) > 8)) columns.push(x);
+  }
+  if (!columns.length || columns[0] > 8) columns.unshift(0);
+  if (canvas.width - columns.at(-1) > 8) columns.push(canvas.width);
+  return columns;
+}
+
+function readGridReport(words, columns) {
+  if (!Array.isArray(words) || ![10, 20, 22].includes(columns?.length)) return null;
+  const centerX = (word) => (word.bbox.x0 + word.bbox.x1) / 2;
+  const centerY = (word) => (word.bbox.y0 + word.bbox.y1) / 2;
+  const rows = words.filter((word) => centerX(word) < columns[1] && /^\d{3,6}$/.test(word.text.trim()));
+  if (!rows.length) return null;
+  const stores = [];
+  for (const row of rows) {
+    const record = { storenumber: row.text.trim() };
+    const rowWords = words.filter((word) => Math.abs(centerY(word) - centerY(row)) < Math.max(10, (row.bbox.y1 - row.bbox.y0) * 0.8));
+    reportMetricKeys.slice(0, columns.length - 3).forEach(([key], index) => {
+      const text = rowWords.filter((word) => centerX(word) >= columns[index + 2] && centerX(word) < columns[index + 3])
+        .sort((a, b) => centerX(a) - centerX(b)).map((word) => word.text).join("").replace(/,/g, "");
+      if (/^-?\$?\d+(?:\.\d+)?%?$/.test(text)) record[key] = text;
+    });
+    if (!["postpspd", "preactspspd", "preunitspspd", "accpspd", "totalprotectrate"].every((key) => record[key] !== undefined)) continue;
+    if (columns.length >= 20 && record.postacts === undefined) continue;
+    stores.push(normalizeStore({ storeNumber: record.storenumber, metrics: performanceMetricsFromRecord(record), visits: [] }));
+  }
+  if (!stores.length) throw new Error("The table was detected, but its numbers were not readable. Please import the Excel report.");
+  return { stores };
+}
+
+async function readGridCells(worker, image, words) {
+  const columns = image.reportColumns;
+  if (![10, 20, 22].includes(columns?.length) || !words) return null;
+  const rows = words.filter((word) => (word.bbox.x0 + word.bbox.x1) / 2 < columns[1] && /^\d{3,6}$/.test(word.text.trim()));
+  if (rows.length < 2) return null;
+  const center = (word) => (word.bbox.y0 + word.bbox.y1) / 2;
+  rows.sort((a, b) => center(a) - center(b));
+  const spacing = (center(rows.at(-1)) - center(rows[0])) / (rows.length - 1);
+  const indices = [columns.length >= 20 ? 12 : 0, 2, 3, 4, 6];
+  const stores = [];
+  await worker.setParameters({ tessedit_pageseg_mode: "7", tessedit_char_whitelist: "0123456789.$%,-" });
+  for (const row of rows) {
+    const record = { storenumber: row.text.trim() };
+    for (const index of indices) {
+      const left = Math.ceil(columns[index + 2] + 4);
+      const top = Math.max(0, Math.floor(center(row) - spacing * 0.42));
+      const result = await worker.recognize(image, { rectangle: {
+        left, top, width: Math.floor(columns[index + 3] - left - 4),
+        height: Math.min(Math.floor(spacing * 0.84), image.height - top)
+      } });
+      const text = result.data.text.trim().replace(/\s|,/g, "").replace(/^\./, "0.");
+      if (/^\$?\d+(?:\.\d{1,2})?%?$/.test(text)) record[reportMetricKeys[index][0]] = text;
+    }
+    const valid = indices.every((index) => record[reportMetricKeys[index][0]] !== undefined) &&
+      parseMetricNumber(record.totalprotectrate) <= 100 &&
+      ["preactspspd", "preunitspspd"].every((key) => parseMetricNumber(record[key]) <= 25);
+    if (valid) stores.push(normalizeStore({ storeNumber: record.storenumber, visits: [], metrics: performanceMetricsFromRecord(record) }));
+    elements.ocrStatus.textContent = `Checking store ${record.storenumber} (${stores.length} read).`;
+  }
+  if (!stores.length) throw new Error("The table was found but its numbers could not be verified. Please import the Excel report.");
+  const skipped = rows.filter((row) => !stores.some((store) => store.storeNumber === row.text.trim())).map((row) => row.text.trim());
+  return { stores, importWarnings: skipped.length ? [`Could not verify stores ${skipped.join(", ")}. Their saved numbers were kept; import Excel or review them manually.`] : [] };
 }
 
 function loadImage(file) {
@@ -2740,6 +2915,7 @@ function ensureExpectedStores(imported, sourceText = "") {
     if (!PRIMARY_EXPECTED_STORE_NUMBERS.has(storeNumber) && !seenNumbers.has(storeNumber)) return;
 
     stores.push(normalizeStore({
+      missingReportRow: true,
       storeNumber,
       storeName: mapping.storeName || `Store ${storeNumber}`,
       contactName: mapping.contactName || "Manager",
@@ -2834,15 +3010,18 @@ function parseOcrStoreLine(line) {
   if (!valueMatches.length) return null;
 
   const hasFullReportRow = valueMatches.length >= reportMetricKeys.length;
+  const compactReport = !hasFullReportRow && valueMatches.length >= 7 &&
+    valueMatches.slice(-3, -1).every((item) => item[0].startsWith("$")) &&
+    valueMatches.at(-1)[0].endsWith("%");
   const metricValueMatches = hasFullReportRow
     ? valueMatches.slice(-reportMetricKeys.length)
-    : valueMatches.slice(-Math.min(valueMatches.length, 6));
+    : valueMatches.slice(-Math.min(valueMatches.length, compactReport ? 7 : 6));
   const firstValueIndex = metricValueMatches[0].index;
   const territory = storeMatch[2].slice(0, firstValueIndex).trim();
   const values = metricValueMatches.map((item) => item[0]);
   const keys = hasFullReportRow
     ? reportMetricKeys.map(([key]) => key)
-    : shortOcrMetricKeys(values.length);
+    : compactReport ? reportMetricKeys.slice(0, 7).map(([key]) => key) : shortOcrMetricKeys(values.length);
 
   const record = {
     storenumber: storeMatch[1],
@@ -2896,8 +3075,8 @@ function metricMtdFromRecord(record, metricName, sourceKeys) {
     if (postActs !== "") return parseMetricNumber(postActs);
 
     const postpaidActivation = firstRecordValue(record, ["postpaidactivation"]);
-    const value = parseMetricNumber(postpaidActivation);
-    return postpaidActivation === "" || value > 150 ? 0 : value;
+    if (postpaidActivation !== "") return parseMetricNumber(postpaidActivation);
+    return Math.round(parseMetricNumber(firstRecordValue(record, ["postpspd"])) * mtdPaceMultiplier());
   }
 
   if (metricName === "Accessory Sales") {
@@ -2955,6 +3134,9 @@ function shortOcrMetricKeys(valueCount) {
 
 function normalizeStore(store) {
   return applyMappingToStore({
+    monthlyReports: store.monthlyReports || {},
+    currentReport: store.currentReport,
+    missingReportRow: Boolean(store.missingReportRow),
     id: store.id || crypto.randomUUID(),
     storeNumber: store.storeNumber || store.storenumber || "",
     storeName: store.storeName || store.store || "Imported Store",

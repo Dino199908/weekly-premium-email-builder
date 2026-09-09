@@ -15,4 +15,9 @@ $setup = Join-Path $dist "Weekly Premium Email Builder Setup $version.exe"
 $latestSetup = Join-Path $dist "Weekly Premium Email Builder Setup Latest.exe"
 if (Test-Path $setup) {
   Copy-Item -LiteralPath $setup -Destination $latestSetup -Force
+  Copy-Item -LiteralPath $setup -Destination (Join-Path $dist "Weekly-Premium-Email-Builder-Setup-$version.exe") -Force
+  $blockmap = "$setup.blockmap"
+  if (Test-Path -LiteralPath $blockmap) {
+    Copy-Item -LiteralPath $blockmap -Destination (Join-Path $dist "Weekly-Premium-Email-Builder-Setup-$version.exe.blockmap") -Force
+  }
 }
