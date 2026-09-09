@@ -283,8 +283,30 @@ function loadState() {
 
 function normalizeLoadedState(value) {
   const stores = Array.isArray(value.stores) && value.stores.length ? value.stores : structuredClone(sampleStores);
+  if (!value.expandedStoreRosterAdded) {
+    loadStoreMappings().forEach((mapping) => {
+      const existing = stores.find((store) =>
+        String(store.storeNumber || "").replace(/^0+/, "") === mapping.storeNumber.replace(/^0+/, "") ||
+        (!store.storeNumber && store.storeName === mapping.storeName));
+      if (existing) {
+        existing.storeNumber ||= mapping.storeNumber;
+        return;
+      }
+      stores.push({
+        id: crypto.randomUUID(),
+        ...mapping,
+        weekStart: stores[0]?.weekStart || "",
+        weekEnd: stores[0]?.weekEnd || "",
+        visits: [],
+        importantNotes: "",
+        helpNotes: "",
+        metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
+      });
+    });
+  }
   return {
     ...value,
+    expandedStoreRosterAdded: true,
     stores: stores.map(normalizeSavedStore),
     settings: { ...defaultSettings, ...(value.settings || {}) },
     lastImportReview: Array.isArray(value.lastImportReview) ? value.lastImportReview : [],
@@ -849,8 +871,9 @@ function finalizeImportedState(imported, previousState) {
   });
 
   return {
+    ...previousState,
     ...imported,
-    stores,
+    stores: [...stores, ...previousStores.filter((previous) => !findPreviousStore(previous, stores))],
     settings: { ...defaultSettings, ...(previousState?.settings || state.settings || {}) },
     lastImportReview: buildImportReviewRows(stores),
     profiles: previousState?.profiles || state.profiles || [],

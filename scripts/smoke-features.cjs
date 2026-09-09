@@ -125,6 +125,13 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+const migrated = context.normalizeLoadedState({ stores: [structuredClone(store)] });
+assert.equal(new Set(migrated.stores.map((item) => item.storeNumber)).size, 24);
+assert.equal(migrated.stores[0].managerEmail, store.managerEmail);
+const deletedRoster = { ...migrated, stores: migrated.stores.filter((item) => item.storeNumber !== "1048") };
+assert.equal(context.normalizeLoadedState(deletedRoster).stores.length, 23, "deleted stores stay deleted after restart");
+const partialImport = context.finalizeImportedState({ stores: [structuredClone(store)] }, migrated);
+assert.equal(partialImport.stores.length, 24, "partial reports preserve the full roster");
 assert.equal(active.storeName, "Harlan");
 assert.equal(active.regularReps, "Henry Stewart, Shane Kelly");
 
