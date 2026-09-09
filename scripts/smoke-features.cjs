@@ -250,7 +250,9 @@ assert.equal(monthlyHistory[0].metrics.length, 5);
 
 const draft = context.draftForStore(active);
 assert.equal(draft.to, "cathy@example.com");
-assert.equal(draft.cc, "KHartley@premiumretail.com");
+assert.equal(draft.cc, undefined, "drafts must not add a CC recipient");
+assert.doesNotMatch(htmlSource, /<span>Cc<\/span>|KHartley@premiumretail\.com/i);
+assert.doesNotMatch(source, /DEFAULT_CC_EMAIL|\?cc=/);
 assert.match(draft.html, /Weekly Partnership Update/);
 assert.equal(draft.html, html, "Outlook draft must use the rich email HTML");
 
