@@ -125,6 +125,14 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+const annualDraft = { ...structuredClone(store), importantNotes: "Sales are up compared with last year. Focus on customer handoffs.", polishedEmail: "Upcoming Visits\nSales are up year-over-year.\nLast month: 25 activations." };
+annualDraft.metrics.push({ name: "Post PSPD YOY", mtd: -50, goal: 10, format: "percent" });
+for (const text of [context.buildEmail(annualDraft), context.buildPolishedEmail(annualDraft), context.buildRichEmailHtml(annualDraft), context.emailDraftText(annualDraft)]) {
+  assert.doesNotMatch(text, /last year|year-over-year|\byoy\b|Upcoming Visits/i);
+  assert.match(text, /Weekly Visits/);
+}
+assert.match(context.emailDraftText(annualDraft), /Last month: 25 activations/);
+assert.match(annualDraft.importantNotes, /last year/, "email filtering must preserve original saved notes");
 vm.runInContext(`globalThis.savedImportSettings = structuredClone(state.settings); state.settings.mtdMultiplier = 8;`, context);
 const compactRow = context.parseOcrStoreLine("1139 Territory 55204 - Whitehead, Travis 5.63 7.38 3.75 4.25 $202 $304 4.76%");
 const compactMetrics = context.performanceMetricsFromRecord(compactRow);

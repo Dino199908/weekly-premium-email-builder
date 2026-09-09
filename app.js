@@ -1071,7 +1071,7 @@ function metricInputValue(value) {
 function renderPreview() {
   const store = getActiveStore();
   elements.emailPreview.innerHTML = window.emailPreviewMode === "plain"
-    ? `<pre>${escapeHtml(store?.polishedEmail || buildEmail(store))}</pre>`
+    ? `<pre>${escapeHtml(emailDraftText(store))}</pre>`
     : buildRichEmailHtml(store);
 }
 
@@ -1296,7 +1296,7 @@ function buildHistorySnapshot(store, status = "snapshot") {
     regularReps: store.regularReps || "",
     preferredWording: store.preferredWording || "",
     metrics: structuredClone(store.metrics || []),
-    emailText: store.polishedEmail || buildEmail(store),
+    emailText: emailDraftText(store),
     emailHtml: buildRichEmailHtml(store)
   };
 }
@@ -1399,8 +1399,36 @@ function shiftDateToWeek(value, sourceStart, targetStart) {
   return toDateInputValue(target);
 }
 
+function hasAnnualComparison(text) {
+  return /\b(?:last\s+year|previous\s+year|prior\s+year|year[\s-]+over[\s-]+year|yoy)\b/i.test(String(text || ""));
+}
+
+function cleanEmailWording(text) {
+  const sentences = new Intl.Segmenter("en", { granularity: "sentence" });
+  return String(text || "").split("\n").map((line) => [...sentences.segment(line)]
+    .filter(({ segment }) => !hasAnnualComparison(segment)).map(({ segment }) => segment).join(""))
+    .join("\n").replace(/Upcoming Visits/gi, "Weekly Visits")
+    .replace(/Here is who you can expect to see in your store over the next couple of weeks:/g, "Weekly Visits");
+}
+
+function emailContentStore(store) {
+  if (!store) return store;
+  const copy = { ...store, metrics: store.metrics.filter((metric) => !hasAnnualComparison(metric.name)) };
+  ["importantNotes", "helpNotes", "newsNotes", "staffingNotes", "openItems", "featuredDeals", "preferredWording"].forEach((key) => {
+    copy[key] = cleanEmailWording(store[key]);
+  });
+  copy.monthlyReports = Object.fromEntries(Object.entries(store.monthlyReports || {}).map(([month, report]) =>
+    [month, { ...report, metrics: report.metrics.filter((metric) => !hasAnnualComparison(metric.name)) }]));
+  return copy;
+}
+
+function emailDraftText(store) {
+  return cleanEmailWording(store?.polishedEmail || buildEmail(store));
+}
+
 function buildEmail(store) {
   if (!store) return "";
+  store = emailContentStore(store);
 
   const visits = store.visits.length
     ? store.visits.map((visit) => `\t\t${formatDate(visit.date)} - ${visit.person || ""}`).join("\n")
@@ -1430,7 +1458,9 @@ function buildEmail(store) {
 
   return `Good morning ${store.contactName || "there"},
 
-Here is your weekly Premium partnership update! First, let's start with who you can expect to see in your store for the next couple of weeks:
+Here is your weekly Premium partnership update!
+
+Weekly Visits
 
 ${visits}
 
@@ -1461,6 +1491,7 @@ ${goalLines || "No month goals entered yet."}`;
 
 function buildPolishedEmail(store) {
   if (!store) return "";
+  store = emailContentStore(store);
 
   const visits = store.visits.length
     ? store.visits.map((visit) => `\t\t${formatDate(visit.date)} - ${visit.person || ""}`).join("\n")
@@ -1477,7 +1508,7 @@ function buildPolishedEmail(store) {
 
 Here is your weekly Premium partnership update. Communication is a big part of being a strong partner, so I want to keep you updated on staffing, coverage, store results, and where we could use support.
 
-Here is who you can expect to see in your store over the next couple of weeks:
+Weekly Visits
 
 ${visits}
 
@@ -1510,6 +1541,7 @@ Please pass this update along to your management team as needed. As always, reac
 
 function buildRichEmailHtml(store) {
   if (!store) return "";
+  store = emailContentStore(store);
   const insight = buildCoachingInsight(store);
   const visits = (store.visits || []).length
     ? (store.visits || []).map((visit) => `<tr><td style="padding:5px 10px;border-bottom:1px solid #edf1ef;color:#5f6d68;font-size:13px;">${escapeHtml(formatDate(visit.date))}</td><td style="padding:5px 10px;border-bottom:1px solid #edf1ef;color:#1c2824;font-size:13px;">${escapeHtml(visit.person || "Open coverage")}</td></tr>`).join("")
@@ -1546,7 +1578,7 @@ function buildRichEmailHtml(store) {
     <tr><td style="padding:22px;">
       <p style="margin:0 0 14px;color:#1c2824;font-size:14px;line-height:1.55;">Good morning ${escapeHtml(store.contactName || "there")},</p>
       <p style="margin:0 0 16px;color:#35413d;font-size:13px;line-height:1.6;">Here is your weekly Premium partnership update. I want to keep you current on coverage, results, and where our partnership can help close the remaining gaps.</p>
-      <h2 style="margin:18px 0 8px;color:#173f34;font-size:15px;">Upcoming Visits</h2>
+      <h2 style="margin:18px 0 8px;color:#173f34;font-size:15px;">Weekly Visits</h2>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e1e7e4;border-radius:5px;border-collapse:separate;border-spacing:0;">${visits}</table>
       ${optionalSections}
       <h2 style="margin:20px 0 8px;color:#173f34;font-size:15px;">Results Update</h2>
@@ -1708,13 +1740,11 @@ function getMetricFocus(metrics) {
   const postPspd = Number(metrics["post pspd"]?.mtd ?? 0);
   const appPspd = Number(metrics["app pspd"]?.mtd ?? 0);
   const accessory = Number(metrics["accessory pspd"]?.mtd ?? metrics["accessory sales"]?.mtd ?? 0);
-  const postYoy = Number(metrics["post pspd yoy"]?.mtd ?? 0);
 
   if (postPspd > 0 && postPspd < 1.1) focus.push("postpaid activation pace");
   if (appPspd > 0 && appPspd < 3) focus.push("app activity");
   if (protect < 10) focus.push("device protection");
   if (accessory > 0 && accessory < 150) focus.push("accessory sales");
-  if (postYoy < -20) focus.push("turning around the postpaid year-over-year trend");
   return uniqueList(focus).slice(0, 3);
 }
 
@@ -1850,7 +1880,7 @@ function trimNumber(value) {
 
 async function copyActiveEmail() {
   const store = getActiveStore();
-  await navigator.clipboard.writeText(store?.polishedEmail || buildEmail(store));
+  await navigator.clipboard.writeText(emailDraftText(store));
   elements.statusText.textContent = "Current email copied.";
 }
 
@@ -1858,7 +1888,7 @@ async function copyRichEmail() {
   const store = getActiveStore();
   if (!store) return;
   const html = buildRichEmailHtml(store);
-  const text = store.polishedEmail || buildEmail(store);
+  const text = emailDraftText(store);
   if (window.weeklyEmailApp?.copyRichEmail) {
     const result = await window.weeklyEmailApp.copyRichEmail({ html, text });
     if (!result?.ok) {
@@ -1893,7 +1923,7 @@ async function sendActiveEmail() {
   }
 
   const subject = `${store.storeName || `Store ${store.storeNumber || ""}`} Weekly Premium Partnership Update`.trim();
-  const body = store.polishedEmail || buildEmail(store);
+  const body = emailDraftText(store);
 
   if (window.weeklyEmailApp?.openEmailDraft) {
     const result = await window.weeklyEmailApp.openEmailDraft({ to: email, cc: DEFAULT_CC_EMAIL, subject, body });
@@ -1920,7 +1950,7 @@ function draftForStore(store) {
     to: String(store.managerEmail || "").trim(),
     cc: DEFAULT_CC_EMAIL,
     subject: `${store.storeName || `Store ${store.storeNumber || ""}`} Weekly Premium Partnership Update`.trim(),
-    body: store.polishedEmail || buildEmail(store),
+    body: emailDraftText(store),
     html: buildRichEmailHtml(store)
   };
 }
@@ -2047,7 +2077,7 @@ async function saveActiveEmail() {
   await saveTextFile({
     title: "Save Weekly Email",
     defaultName: fileName,
-    text: store?.polishedEmail || buildEmail(store)
+    text: emailDraftText(store)
   });
 }
 
@@ -2062,7 +2092,7 @@ async function saveAllEmails() {
 
 function buildAllEmails() {
   return state.stores
-    .map((store) => `--- ${store.storeName} ---\n\n${store.polishedEmail || buildEmail(store)}`)
+    .map((store) => `--- ${store.storeName} ---\n\n${emailDraftText(store)}`)
     .join("\n\n\n");
 }
 
@@ -2077,7 +2107,7 @@ async function polishActiveEmail() {
       text: fallback,
       style: elements.aiStyleSelect.value
     });
-    store.polishedEmail = result?.ok ? result.text : fallback;
+    store.polishedEmail = cleanEmailWording(result?.ok ? result.text : fallback);
     saveAndRender();
     if (result?.ok) {
       elements.writerStatus.textContent = `${store.storeName} was polished with AI.`;
@@ -2102,7 +2132,7 @@ async function polishAllEmails() {
         text: fallback,
         style: elements.aiStyleSelect.value
       });
-      store.polishedEmail = result?.ok ? result.text : fallback;
+      store.polishedEmail = cleanEmailWording(result?.ok ? result.text : fallback);
       if (result?.ok) aiCount += 1;
       if (result?.needsKey) {
         openAISettings();
@@ -3317,7 +3347,6 @@ function getStoreOpportunities(record, benchmark) {
   if (isBelowBenchmark(record, benchmark, "apppspd", 0.9)) opportunities.push("app activity");
   if (isBelowBenchmark(record, benchmark, "accpspd", 0.9)) opportunities.push("accessory sales");
   if (parseMetricNumber(record.totalprotectrate) < Math.max(parseMetricNumber(benchmark?.totalprotectrate), 10)) opportunities.push("device protection");
-  if (parseMetricNumber(record.postpspdyoy) < -20) opportunities.push("turning around the postpaid year-over-year trend");
   if (isBelowBenchmark(record, benchmark, "preactrate", 0.9)) opportunities.push("prepaid activation rate");
   return uniqueList(opportunities).slice(0, 3);
 }
