@@ -10,6 +10,14 @@ const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
 
 const isDev = !app.isPackaged;
 let mainWindow;
+const primaryInstance = app.requestSingleInstanceLock();
+if (!primaryInstance) app.quit();
+app.on("second-instance", () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -28,6 +36,7 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, "index.html"));
+  win.on("close", () => win.webContents.session.flushStorageData());
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -463,6 +472,7 @@ function createMenu() {
 }
 
 app.whenReady().then(() => {
+  if (!primaryInstance) return;
   registerIpcHandlers();
   createMenu();
   createWindow();
