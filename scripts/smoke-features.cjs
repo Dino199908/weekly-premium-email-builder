@@ -73,7 +73,6 @@ const store = {
   helpNotes: "Please keep sending qualified opportunities and supporting protection conversations.",
   newsNotes: "New display table is live near the front of the store.",
   staffingNotes: "Coverage is set for the week.",
-  hoursNotes: "Sunday: 11-6\nMonday - Wednesday: 11-7\nThursday: 11-8\nFriday - Saturday: 10-8",
   openItems: "",
   featuredDeals: "Current device promotions are available.",
   regularReps: "Henry Stewart, Shane Kelly",
@@ -129,34 +128,31 @@ const active = context.getActiveStore();
 assert.equal(active.storeName, "Harlan");
 assert.equal(active.regularReps, "Henry Stewart, Shane Kelly");
 
-const customTierHours = context.buildTierHoursText({
-  sunday: "12-5",
-  monWed: "10-7",
-  thursday: "10-8",
-  friSat: "9-9"
-});
-assert.equal(customTierHours, "Sunday: 12-5\nMonday - Wednesday: 10-7\nThursday: 10-8\nFriday - Saturday: 9-9");
-assert.equal(context.parseTierHours(customTierHours).friSat, "9-9");
-active.hoursNotes = customTierHours;
+const jasonMapping = context.expectedStoreMappings().find((mapping) => mapping.storeNumber === "1247");
+assert.equal(jasonMapping.contactName, "Jason");
+assert.equal(jasonMapping.managerEmail, "store-mgr.s01247@stores.us.wal-mart.com");
+const williamsburgMapping = context.expectedStoreMappings().find((mapping) => mapping.storeNumber === "1048");
+assert.equal(williamsburgMapping.storeName, "Williamsburg");
+assert.equal(williamsburgMapping.managerEmail, "store-mgr.s01048@stores.us.wal-mart.com");
+const mappedImportNumbers = context.ensureExpectedStores({ stores: [] }, "1048").stores.map((item) => item.storeNumber);
+assert.ok(mappedImportNumbers.includes("739"), "core stores should still be filled when OCR misses one");
+assert.ok(mappedImportNumbers.includes("1048"), "a mapped store mentioned in the report should be added if OCR misses it");
+assert.ok(!mappedImportNumbers.includes("1113"), "unmentioned mapped stores should not flood the import");
 
-const staleProfile = {
-  ...context.buildProfileFromStore(active),
-  hoursNotes: "Sunday: 11-6\nMonday - Wednesday: 11-7\nThursday: 11-8\nFriday - Saturday: 10-8"
-};
-const importedWithDefaultHours = {
+const savedProfile = context.buildProfileFromStore(active);
+const importedStore = {
   stores: [{
     ...structuredClone(active),
-    hoursNotes: staleProfile.hoursNotes,
     metrics: active.metrics.map((metric) => ({ ...metric, mtd: Number(metric.mtd) + 1 }))
   }]
 };
-const mergedImport = context.finalizeImportedState(importedWithDefaultHours, {
+const mergedImport = context.finalizeImportedState(importedStore, {
   stores: [structuredClone(active)],
   settings: { mtdMultiplier: 10 },
-  profiles: [staleProfile],
+  profiles: [savedProfile],
   history: []
 });
-assert.equal(mergedImport.stores[0].hoursNotes, customTierHours, "imports must preserve the store's saved tier hours");
+assert.equal(mergedImport.stores[0].regularReps, "Henry Stewart, Shane Kelly", "imports must preserve the store's saved profile details");
 
 const checks = context.buildSafetyChecks(active);
 assert.equal(checks.length, 7, "pre-send review must have seven checks");
@@ -174,7 +170,6 @@ assert.ok(insight.focus.length > 20);
 
 const profile = context.buildProfileFromStore(active);
 assert.equal(profile.managerEmail, "cathy@example.com");
-assert.equal(profile.hoursNotes, customTierHours);
 assert.equal(profile.goals.length, 5);
 const imported = {
   ...structuredClone(active),
@@ -187,7 +182,6 @@ const profiled = context.applyStoredProfileToStore(imported, [profile]);
 assert.equal(profiled.contactName, "Cathy");
 assert.equal(profiled.managerEmail, "cathy@example.com");
 assert.equal(profiled.regularReps, "Henry Stewart, Shane Kelly");
-assert.equal(profiled.hoursNotes, customTierHours);
 assert.ok(profiled.metrics.every((metric) => Number(metric.goal) > 0));
 
 const html = context.buildRichEmailHtml(active);
@@ -195,7 +189,7 @@ assert.match(html, /Outlook|Weekly Partnership Update/);
 assert.match(html, /Focus this week/);
 assert.match(html, /background:#087b61/);
 assert.match(html, /Postpaid Activation/);
-assert.match(html, /Friday - Saturday: 9-9/);
+assert.doesNotMatch(html, /Location Tier Hours/);
 assert.match(html, /News/);
 assert.match(html, /New display table is live near the front of the store\./);
 assert.match(html, /Featured Device\/Carrier Deals/);
@@ -210,6 +204,9 @@ assert.equal(snapshot.metrics.length, 5);
 assert.match(snapshot.emailHtml, /Weekly Partnership Update/);
 assert.equal(snapshot.newsNotes, "New display table is live near the front of the store.");
 assert.equal(context.historyForStore(active).length, 1);
+const monthlyHistory = context.monthlyHistoryForStore(active);
+assert.equal(monthlyHistory.length, 1);
+assert.equal(monthlyHistory[0].metrics.length, 5);
 
 const draft = context.draftForStore(active);
 assert.equal(draft.to, "cathy@example.com");
@@ -252,4 +249,4 @@ assert.match(htmlSource, /New Outlook \(No Sign-In\)/);
 assert.match(htmlSource, /Open in New Outlook/);
 assert.doesNotMatch(htmlSource, /Microsoft Application ID|Mail\.ReadWrite/);
 
-console.log("FEATURE_SMOKE_OK: no-sign-in new Outlook compose, guided multi-draft queue, Classic Outlook fallback, AI polish, news notes, long draft payloads, import-safe tier hours, rich drafts, profiles, history, readiness, coaching, and safety");
+console.log("FEATURE_SMOKE_OK: no-sign-in new Outlook compose, guided multi-draft queue, Classic Outlook fallback, AI polish, news notes, expanded store mappings, monthly history, rich drafts, profiles, readiness, coaching, and safety");

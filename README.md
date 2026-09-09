@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.31`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.33`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -12,7 +12,7 @@ Use this local helper when another Codex thread has useful context:
 
 ```powershell
 npm run read-thread -- --list "Portal"
-npm run read-thread -- --thread "Portal Updates" --query "tier hours" --context 2
+npm run read-thread -- --thread "Portal Updates" --query "weekly email" --context 2
 ```
 
 Add `--include-tools` when the answer is likely inside command output.
@@ -45,15 +45,14 @@ The finished files will be created in `dist`.
 
 - Stores four starter locations in your browser.
 - Lets you edit contact names, visits, important notes, News updates, MTD numbers, and monthly goals.
-- Lets you update four location tier schedules per store, with one-click standard hours: Sunday `11-6`, Monday-Wednesday `11-7`, Thursday `11-8`, and Friday-Saturday `10-8`.
 - Copies a formatted, Outlook-ready HTML email with inline goal progress bars.
-- Saves weekly store snapshots, compares metric movement, and duplicates last week's setup into the current week.
+- Saves weekly store snapshots, rolls them into monthly history, compares metric movement, and duplicates last week's setup into the current week.
 - Shows Ready, Needs Review, Needs Data, and Sent status for every store.
 - Creates automatic coaching insights from the strongest result, biggest gap, and needed daily pace.
-- Saves reusable store profiles with contacts, tier hours, representatives, preferred wording, and goals.
+- Saves reusable store profiles with contacts, representatives, preferred wording, and goals.
 - Runs seven pre-send checks for email, dates, visits, metrics, goals, notes, and saved state.
 - Opens formatted store emails in new Outlook without a Microsoft app registration, or creates drafts directly in Classic Outlook.
-- Keeps saved location tier hours intact when new performance reports are imported.
+- Includes expanded default store-number mappings, with Walmart manager emails generated from the same store-number pattern used by Jason's store.
 - Automatically writes progress lines like `73% to goal ($2,000 remaining)`.
 - Copies one store email or all store emails.
 - Saves the current email or all store emails to `.txt` files.

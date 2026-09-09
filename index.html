@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Weekly Premium Email Builder</title>
+    <link rel="icon" href="assets/icon.ico">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -37,7 +38,7 @@
             <form id="storeForm" class="editor">
               <div class="operations-overview">
                 <section class="band profile-band">
-                  <div class="section-head compact"><div><h2>Store Profile</h2><p>Reusable details, hours, representatives, and goals.</p></div><div class="button-row"><button id="applyProfileBtn" class="text-button" type="button">Apply Profile</button><button id="saveProfileBtn" class="primary small-button" type="button">Save Profile</button></div></div>
+                  <div class="section-head compact"><div><h2>Store Profile</h2><p>Reusable details, representatives, and goals.</p></div><div class="button-row"><button id="applyProfileBtn" class="text-button" type="button">Apply Profile</button><button id="saveProfileBtn" class="primary small-button" type="button">Save Profile</button></div></div>
                   <div id="profileSummary" class="profile-summary"></div>
                 </section>
 
@@ -76,7 +77,6 @@
                         <label>Regular representatives<input id="regularReps" name="regularReps" type="text" placeholder="Henry Stewart, Shane Kelly"></label>
                         <label>Preferred wording<input id="preferredWording" name="preferredWording" type="text" placeholder="A preferred closing sentence or tone note"></label>
                       </div>
-                      <div class="tier-hours-panel"><div class="tier-hours-head"><div><h3>Location Tier Hours</h3><p>Set the customer-facing schedule saved with this store.</p></div><div class="button-row"><button id="applyTierHoursBtn" class="text-button" type="button">Use standard hours</button><button id="saveTierHoursBtn" class="primary small-button" type="button">Save tier hours</button></div></div><div class="tier-hours-editor" aria-label="Edit location tier hours"><label>Sunday<input id="tierSunday" class="tier-hour-input" type="text" placeholder="11-6"></label><label>Monday - Wednesday<input id="tierMonWed" class="tier-hour-input" type="text" placeholder="11-7"></label><label>Thursday<input id="tierThursday" class="tier-hour-input" type="text" placeholder="11-8"></label><label>Friday - Saturday<input id="tierFriSat" class="tier-hour-input" type="text" placeholder="10-8"></label></div><textarea id="hoursNotes" class="sr-only" tabindex="-1" aria-hidden="true"></textarea><div id="tierHoursSummary" class="tier-hours-summary" aria-label="Saved location tier hours"></div></div>
                     </section>
                   </div>
 
@@ -96,14 +96,19 @@
             </form>
 
             <section class="preview">
-              <div class="section-head preview-head"><div><h2>Email Preview — Outlook Ready</h2><p id="statusText">Saved locally in this app.</p></div><div class="button-row primary-email-actions"><button id="copyRichEmailBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V4H4v12h4"></path></svg>Copy Rich Email</button><select id="outlookModeSelect" aria-label="Outlook draft destination"><option value="compose">New Outlook (No Sign-In)</option><option value="classic">Classic Outlook</option></select><button id="createOutlookDraftBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path></svg><span id="createOutlookDraftLabel">Open in New Outlook</span></button><button id="createAllDraftsBtn" class="primary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path><path d="M18 2v6M15 5h6"></path></svg><span id="createAllDraftsLabel">Start All Drafts</span></button></div></div>
+              <div class="section-head preview-head"><div><h2>Email Preview - Outlook Ready</h2><p id="statusText">Saved locally in this app.</p></div><div class="button-row primary-email-actions"><button id="copyRichEmailBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V4H4v12h4"></path></svg>Copy Rich Email</button><select id="outlookModeSelect" aria-label="Outlook draft destination"><option value="compose">New Outlook (No Sign-In)</option><option value="classic">Classic Outlook</option></select><button id="createOutlookDraftBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path></svg><span id="createOutlookDraftLabel">Open in New Outlook</span></button><button id="createAllDraftsBtn" class="primary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path><path d="M18 2v6M15 5h6"></path></svg><span id="createAllDraftsLabel">Start All Drafts</span></button></div></div>
               <div class="preview-utility"><div id="emailChecklist" class="checklist" aria-label="Email checklist"></div><div class="button-row"><button id="sendEmailBtn" class="secondary" type="button">Open Email</button><button id="markSentBtn" class="secondary" type="button">Mark Sent</button><button id="saveEmailBtn" class="secondary" type="button">Save Text</button><select id="aiStyleSelect" aria-label="AI editing style"><option value="polish">Polish</option><option value="concise">Concise</option><option value="friendly">Friendly</option><option value="professional">Professional</option></select><button id="polishEmailBtn" class="secondary" type="button">AI Polish</button><button id="copyEmailBtn" class="secondary" type="button">Copy Plain Text</button><button id="copyAllBtn" class="secondary" type="button">Copy All</button><button id="polishAllBtn" class="secondary" type="button">AI Polish All</button><button id="aiSettingsBtn" class="text-button" type="button">AI Settings</button><button id="saveAllBtn" class="secondary" type="button">Save All</button></div></div>
               <div id="emailPreview" class="rich-email-preview"></div>
             </section>
           </div>
 
           <aside class="history-panel">
-            <div class="history-head"><div><h2>Weekly History</h2><p>Saved snapshots and performance movement.</p></div><div class="history-actions"><button id="duplicateLastWeekBtn" class="text-button" type="button">Duplicate Last Week</button><button id="saveSnapshotBtn" class="secondary small-button" type="button">Save Snapshot</button></div></div>
+            <div class="history-head"><div><h2>History</h2><p>Monthly rollups, weekly snapshots, and performance movement.</p></div><div class="history-actions"><button id="duplicateLastWeekBtn" class="text-button" type="button">Duplicate Last Week</button><button id="saveSnapshotBtn" class="secondary small-button" type="button">Save Snapshot</button></div></div>
+            <section class="monthly-history-section" aria-labelledby="monthlyHistoryHeading">
+              <div class="history-subhead"><h3 id="monthlyHistoryHeading">Monthly History</h3><p>Latest saved MTD snapshot for each month.</p></div>
+              <div id="monthlyHistoryList" class="monthly-history-list"></div>
+            </section>
+            <div class="history-subhead"><h3>Weekly Snapshots</h3><p>Each saved week with metric movement.</p></div>
             <div id="historyList" class="history-list"></div>
           </aside>
         </div>

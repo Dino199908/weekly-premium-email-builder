@@ -1,21 +1,11 @@
 const STORAGE_KEY = "premiumWeeklyEmailBuilder.v1";
 const STORE_MAPPING_KEY = "premiumWeeklyEmailBuilder.storeMappings.v1";
 const DEFAULT_CC_EMAIL = "KHartley@premiumretail.com";
-const MAX_HISTORY_ITEMS = 40;
+const MAX_HISTORY_ITEMS = 240;
 const defaultSettings = {
   mtdMultiplier: Math.max(new Date().getDate() - 1, 1),
   outlookMode: "compose"
 };
-
-const STANDARD_TIER_HOURS = [
-  { key: "sunday", label: "Sunday", hours: "11-6" },
-  { key: "monWed", label: "Monday - Wednesday", hours: "11-7" },
-  { key: "thursday", label: "Thursday", hours: "11-8" },
-  { key: "friSat", label: "Friday - Saturday", hours: "10-8" }
-];
-const STANDARD_TIER_HOURS_TEXT = STANDARD_TIER_HOURS
-  .map(({ label, hours }) => `${label}: ${hours}`)
-  .join("\n");
 
 const metricDefaults = [
   { name: "Postpaid Activation", mtd: 14, goal: 41, format: "number" },
@@ -25,12 +15,39 @@ const metricDefaults = [
   { name: "Accessory Sales", mtd: 2431, goal: 8000, format: "currency" }
 ];
 
+function storeManagerEmail(storeNumber) {
+  const digits = String(storeNumber || "").replace(/\D/g, "");
+  return digits ? `store-mgr.s${digits.padStart(5, "0")}@stores.us.wal-mart.com` : "";
+}
+
 const defaultStoreMappings = [
-  { storeNumber: "739", storeName: "", contactName: "", managerEmail: "" },
-  { storeNumber: "1743", storeName: "", contactName: "", managerEmail: "" },
-  { storeNumber: "1247", storeName: "", contactName: "", managerEmail: "" },
-  { storeNumber: "3772", storeName: "", contactName: "", managerEmail: "" }
+  { storeNumber: "739", storeName: "Middlesboro", contactName: "Selena", managerEmail: storeManagerEmail("739") },
+  { storeNumber: "1743", storeName: "Harlan", contactName: "Cathy", managerEmail: storeManagerEmail("1743") },
+  { storeNumber: "1247", storeName: "Hazard", contactName: "Jason", managerEmail: storeManagerEmail("1247") },
+  { storeNumber: "3772", storeName: "Jonesville", contactName: "Karen", managerEmail: storeManagerEmail("3772") },
+  { storeNumber: "1048", storeName: "Williamsburg", contactName: "Manager", managerEmail: storeManagerEmail("1048") },
+  { storeNumber: "1113", storeName: "London", contactName: "Manager", managerEmail: storeManagerEmail("1113") },
+  { storeNumber: "1139", storeName: "Morehead", contactName: "Manager", managerEmail: storeManagerEmail("1139") },
+  { storeNumber: "1140", storeName: "Mount Sterling", contactName: "Manager", managerEmail: storeManagerEmail("1140") },
+  { storeNumber: "1189", storeName: "Barbourville", contactName: "Manager", managerEmail: storeManagerEmail("1189") },
+  { storeNumber: "1190", storeName: "Berea", contactName: "Manager", managerEmail: storeManagerEmail("1190") },
+  { storeNumber: "1210", storeName: "Nicholasville", contactName: "Manager", managerEmail: storeManagerEmail("1210") },
+  { storeNumber: "1259", storeName: "Corbin", contactName: "Manager", managerEmail: storeManagerEmail("1259") },
+  { storeNumber: "2628", storeName: "Lexington - Nicholasville Rd", contactName: "Manager", managerEmail: storeManagerEmail("2628") },
+  { storeNumber: "3894", storeName: "Lexington - Grey Lag Way", contactName: "Manager", managerEmail: storeManagerEmail("3894") },
+  { storeNumber: "493", storeName: "Paris", contactName: "Manager", managerEmail: storeManagerEmail("493") },
+  { storeNumber: "519", storeName: "Harrodsburg", contactName: "Manager", managerEmail: storeManagerEmail("519") },
+  { storeNumber: "571", storeName: "Georgetown", contactName: "Manager", managerEmail: storeManagerEmail("571") },
+  { storeNumber: "591", storeName: "Cynthiana", contactName: "Manager", managerEmail: storeManagerEmail("591") },
+  { storeNumber: "689", storeName: "Somerset", contactName: "Manager", managerEmail: storeManagerEmail("689") },
+  { storeNumber: "692", storeName: "Danville", contactName: "Manager", managerEmail: storeManagerEmail("692") },
+  { storeNumber: "702", storeName: "Winchester", contactName: "Manager", managerEmail: storeManagerEmail("702") },
+  { storeNumber: "719", storeName: "Richmond", contactName: "Manager", managerEmail: storeManagerEmail("719") },
+  { storeNumber: "720", storeName: "Frankfort", contactName: "Manager", managerEmail: storeManagerEmail("720") },
+  { storeNumber: "825", storeName: "Stanford", contactName: "Manager", managerEmail: storeManagerEmail("825") }
 ];
+
+const PRIMARY_EXPECTED_STORE_NUMBERS = new Set(["739", "1743", "1247", "3772"]);
 
 const reportMetricKeys = [
   ["postpspd", "Post PSPD", "number"],
@@ -137,7 +154,6 @@ const elements = IS_FEATURE_TEST ? {} : {
   helpNotes: document.querySelector("#helpNotes"),
   newsNotes: document.querySelector("#newsNotes"),
   staffingNotes: document.querySelector("#staffingNotes"),
-  hoursNotes: document.querySelector("#hoursNotes"),
   openItems: document.querySelector("#openItems"),
   featuredDeals: document.querySelector("#featuredDeals"),
   regularReps: document.querySelector("#regularReps"),
@@ -167,16 +183,10 @@ const elements = IS_FEATURE_TEST ? {} : {
   createAllDraftsLabel: document.querySelector("#createAllDraftsLabel"),
   storeMappingsList: document.querySelector("#storeMappingsList"),
   screenshotDropZone: document.querySelector("#screenshotDropZone"),
-  applyTierHoursBtn: document.querySelector("#applyTierHoursBtn"),
-  saveTierHoursBtn: document.querySelector("#saveTierHoursBtn"),
-  tierSunday: document.querySelector("#tierSunday"),
-  tierMonWed: document.querySelector("#tierMonWed"),
-  tierThursday: document.querySelector("#tierThursday"),
-  tierFriSat: document.querySelector("#tierFriSat"),
-  tierHoursSummary: document.querySelector("#tierHoursSummary"),
   readinessBoard: document.querySelector("#readinessBoard"),
   profileSummary: document.querySelector("#profileSummary"),
   coachingInsight: document.querySelector("#coachingInsight"),
+  monthlyHistoryList: document.querySelector("#monthlyHistoryList"),
   preSendReview: document.querySelector("#preSendReview"),
   historyList: document.querySelector("#historyList"),
   visitTemplate: document.querySelector("#visitTemplate"),
@@ -216,8 +226,6 @@ document.querySelector("#createAllDraftsBtn").addEventListener("click", createAl
 document.querySelector("#saveSnapshotBtn").addEventListener("click", saveActiveSnapshot);
 document.querySelector("#duplicateLastWeekBtn").addEventListener("click", duplicateLastWeek);
 document.querySelector("#markSentBtn").addEventListener("click", markActiveSent);
-elements.applyTierHoursBtn.addEventListener("click", applyStandardTierHours);
-elements.saveTierHoursBtn.addEventListener("click", () => updateTierHoursFromInputs({ announce: true }));
 document.addEventListener("paste", handleClipboardPaste, true);
 elements.screenshotDropZone.addEventListener("click", () => elements.screenshotDropZone.focus());
 elements.screenshotDropZone.addEventListener("paste", handleClipboardPaste);
@@ -226,26 +234,18 @@ elements.reportPreview.addEventListener("drop", blockReportPreviewDrop);
 
 elements.form.addEventListener("input", (event) => {
   if (event.target.closest("#visitsList, #metricsList, #storeMappingsList")) return;
-  if (event.target.classList.contains("tier-hour-input")) {
-    updateTierHoursFromInputs();
-    return;
-  }
   if (event.target === elements.mtdMultiplier) {
     updateMtdMultiplier();
     return;
   }
   updateActiveStoreFromForm();
   saveWithoutRender();
-  if (event.target === elements.hoursNotes) {
-    renderTierHoursEditor();
-  }
   if (event.target === elements.weekStart || event.target === elements.weekEnd) {
     renderVisits();
   }
   if (event.target === elements.storeName || event.target === elements.contactName) {
     renderTabs();
   }
-  renderTierHoursSummary();
   renderChecklist();
   renderReadinessBoard();
   renderProfileSummary();
@@ -299,7 +299,7 @@ function normalizeSavedStore(store) {
     ...store,
     newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
-    hoursNotes: String(store.hoursNotes || "").trim() || STANDARD_TIER_HOURS_TEXT,
+    hoursNotes: String(store.hoursNotes || "").trim(),
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
     regularReps: store.regularReps || "",
@@ -622,18 +622,9 @@ function renderProfileSummary() {
   elements.profileSummary.innerHTML = [
     ["Manager", store.contactName || "Not set"],
     ["Manager email", store.managerEmail || "Not set"],
-    ["Location tier hours", compactTierHours(store.hoursNotes)],
     ["Regular representatives", store.regularReps || "Not set"],
     ["Preferred wording", store.preferredWording || "Use the standard partnership tone"]
   ].map(([label, value]) => `<div class="profile-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-}
-
-function compactTierHours(value) {
-  return String(value || STANDARD_TIER_HOURS_TEXT)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" · ");
 }
 
 function buildCoachingInsight(store) {
@@ -697,7 +688,41 @@ function renderPreSendReview() {
 
 function renderHistory() {
   const store = getActiveStore();
-  if (!store || !elements.historyList) return;
+  if (!store || !elements.historyList) {
+    if (elements.monthlyHistoryList) elements.monthlyHistoryList.innerHTML = "";
+    return;
+  }
+
+  renderMonthlyHistory(store);
+  renderWeeklyHistory(store);
+}
+
+function renderMonthlyHistory(store) {
+  if (!elements.monthlyHistoryList) return;
+  const months = monthlyHistoryForStore(store);
+  if (!months.length) {
+    elements.monthlyHistoryList.innerHTML = `<div class="history-empty compact"><strong>No monthly history yet</strong><span>Save snapshots during the month to build this rollup.</span></div>`;
+    return;
+  }
+
+  elements.monthlyHistoryList.innerHTML = months.slice(0, 6).map((item, index) => {
+    const previous = months[index + 1];
+    const rows = (item.metrics || []).slice(0, 5).map((metric) => {
+      const previousMetric = (previous?.metrics || []).find((candidate) => candidate.name === metric.name);
+      const delta = previousMetric ? Number(metric.mtd || 0) - Number(previousMetric.mtd || 0) : 0;
+      const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+      const deltaText = previousMetric ? `${delta > 0 ? "+" : delta < 0 ? "-" : ""}${delta ? formatValue(Math.abs(delta), metric.format) : "No change"}` : "First month";
+      return `<div class="monthly-metric"><span>${escapeHtml(metric.name)}</span><strong>${escapeHtml(formatValue(metric.mtd, metric.format))}</strong><small class="${direction}">${escapeHtml(deltaText)}</small></div>`;
+    }).join("");
+
+    return `<article class="monthly-card">
+      <header><strong>${escapeHtml(item.monthLabel)}</strong><span>${escapeHtml(historyStatusLabel(item.status))}</span></header>
+      <div class="monthly-metrics">${rows}</div>
+    </article>`;
+  }).join("");
+}
+
+function renderWeeklyHistory(store) {
   const items = historyForStore(store);
   if (!items.length) {
     elements.historyList.innerHTML = `<div class="history-empty"><strong>No weekly snapshots yet</strong><span>Save a snapshot or open an email draft to start the timeline.</span></div>`;
@@ -710,13 +735,53 @@ function renderHistory() {
       const previous = (prior?.metrics || []).find((candidate) => candidate.name === metric.name);
       const delta = previous ? Number(metric.mtd || 0) - Number(previous.mtd || 0) : 0;
       const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
-      return `<div class="history-metric"><span>${escapeHtml(metric.name)}</span><strong>${escapeHtml(formatValue(metric.mtd, metric.format))}</strong><small class="${direction}">${delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} ${delta ? escapeHtml(formatValue(Math.abs(delta), metric.format)) : ""}</small></div>`;
+      return `<div class="history-metric"><span>${escapeHtml(metric.name)}</span><strong>${escapeHtml(formatValue(metric.mtd, metric.format))}</strong><small class="${direction}">${delta > 0 ? "+" : delta < 0 ? "-" : "="} ${delta ? escapeHtml(formatValue(Math.abs(delta), metric.format)) : ""}</small></div>`;
     }).join("");
     return `<article class="history-card">
       <header><strong>${escapeHtml(formatWeekRange(item.weekStart, item.weekEnd))}</strong><span class="history-status ${escapeHtml(item.status)}">${escapeHtml(historyStatusLabel(item.status))}</span></header>
       <div class="history-metrics">${rows}</div>
     </article>`;
   }).join("");
+}
+
+function monthlyHistoryForStore(store) {
+  const latestByMonth = new Map();
+  historyForStore(store).forEach((item) => {
+    const monthKey = historyMonthKey(item);
+    if (!monthKey) return;
+    const existing = latestByMonth.get(monthKey);
+    if (!existing || historySortValue(item) > historySortValue(existing)) {
+      latestByMonth.set(monthKey, item);
+    }
+  });
+
+  return [...latestByMonth.entries()]
+    .map(([monthKey, item]) => ({
+      ...item,
+      monthKey,
+      monthLabel: formatHistoryMonth(monthKey)
+    }))
+    .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+}
+
+function historyMonthKey(item) {
+  const value = item.weekEnd || item.weekStart || String(item.createdAt || "").slice(0, 10);
+  const date = parseDateInput(value);
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function formatHistoryMonth(monthKey) {
+  const [year, month] = String(monthKey || "").split("-").map(Number);
+  if (!year || !month) return "Unknown Month";
+  return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function historySortValue(item) {
+  const date = new Date(item.createdAt || item.weekEnd || item.weekStart || 0);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
 function historyStatusLabel(status) {
@@ -770,7 +835,7 @@ function finalizeImportedState(imported, previousState) {
       visits: Array.isArray(previous?.visits) && previous.visits.length ? previous.visits : store.visits,
       newsNotes: store.newsNotes || previous?.newsNotes || "",
       staffingNotes: store.staffingNotes || previous?.staffingNotes || "",
-      hoursNotes: previous?.hoursNotes || store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+      hoursNotes: previous?.hoursNotes || store.hoursNotes || "",
       openItems: store.openItems || previous?.openItems || "",
       featuredDeals: store.featuredDeals || previous?.featuredDeals || "",
       regularReps: store.regularReps || previous?.regularReps || "",
@@ -853,14 +918,11 @@ function renderForm() {
   elements.helpNotes.value = store.helpNotes || "";
   elements.newsNotes.value = store.newsNotes || "";
   elements.staffingNotes.value = store.staffingNotes || "";
-  elements.hoursNotes.value = store.hoursNotes || "";
   elements.openItems.value = store.openItems || "";
   elements.featuredDeals.value = store.featuredDeals || "";
   elements.regularReps.value = store.regularReps || "";
   elements.preferredWording.value = store.preferredWording || "";
 
-  renderTierHoursEditor();
-  renderTierHoursSummary();
   renderVisits();
   renderMetrics();
 }
@@ -877,85 +939,6 @@ function renderMetrics() {
   if (!store) return;
   elements.metricsList.innerHTML = "";
   store.metrics.forEach((metric, index) => elements.metricsList.appendChild(createMetricRow(metric, index)));
-}
-
-function renderTierHoursSummary() {
-  const store = getActiveStore();
-  if (!store || !elements.tierHoursSummary) return;
-  elements.tierHoursSummary.textContent = "Changes save automatically and appear in every generated email.";
-}
-
-function normalizeTierHoursLabel(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z]/g, "");
-}
-
-function parseTierHours(value) {
-  const parsed = Object.fromEntries(STANDARD_TIER_HOURS.map(({ key, hours }) => [key, hours]));
-  const keysByLabel = new Map(STANDARD_TIER_HOURS.map(({ key, label }) => [normalizeTierHoursLabel(label), key]));
-
-  String(value || "").split(/\r?\n/).forEach((line) => {
-    const separator = line.indexOf(":");
-    if (separator < 0) return;
-    const key = keysByLabel.get(normalizeTierHoursLabel(line.slice(0, separator)));
-    if (key) parsed[key] = line.slice(separator + 1).trim();
-  });
-
-  return parsed;
-}
-
-function buildTierHoursText(values) {
-  return STANDARD_TIER_HOURS
-    .map(({ key, label }) => `${label}: ${String(values?.[key] ?? "").trim()}`)
-    .join("\n");
-}
-
-function renderTierHoursEditor(store = getActiveStore()) {
-  if (!store || !elements.tierSunday) return;
-  const values = parseTierHours(store.hoursNotes || STANDARD_TIER_HOURS_TEXT);
-  elements.tierSunday.value = values.sunday;
-  elements.tierMonWed.value = values.monWed;
-  elements.tierThursday.value = values.thursday;
-  elements.tierFriSat.value = values.friSat;
-}
-
-function updateTierHoursFromInputs({ announce = false } = {}) {
-  const store = getActiveStore();
-  if (!store) return;
-  const values = {
-    sunday: elements.tierSunday.value,
-    monWed: elements.tierMonWed.value,
-    thursday: elements.tierThursday.value,
-    friSat: elements.tierFriSat.value
-  };
-  store.hoursNotes = buildTierHoursText(values);
-  store.polishedEmail = "";
-  elements.hoursNotes.value = store.hoursNotes;
-  saveWithoutRender();
-  renderTierHoursSummary();
-  renderChecklist();
-  renderReadinessBoard();
-  renderProfileSummary();
-  renderCoachingInsight();
-  renderPreSendReview();
-  renderPreview();
-  if (announce) elements.statusText.textContent = "Location tier hours saved for this store.";
-}
-
-function applyStandardTierHours() {
-  const store = getActiveStore();
-  if (!store) return;
-  store.hoursNotes = STANDARD_TIER_HOURS_TEXT;
-  store.polishedEmail = "";
-  elements.hoursNotes.value = STANDARD_TIER_HOURS_TEXT;
-  saveWithoutRender();
-  renderTierHoursEditor(store);
-  renderTierHoursSummary();
-  renderChecklist();
-  renderReadinessBoard();
-  renderProfileSummary();
-  renderPreSendReview();
-  renderPreview();
-  elements.statusText.textContent = "Standard location tier hours applied.";
 }
 
 function createVisitRow(visit, index) {
@@ -1038,7 +1021,6 @@ function updateActiveStoreFromForm() {
   store.helpNotes = elements.helpNotes.value;
   store.newsNotes = elements.newsNotes.value;
   store.staffingNotes = elements.staffingNotes.value;
-  store.hoursNotes = elements.hoursNotes.value;
   store.openItems = elements.openItems.value;
   store.featuredDeals = elements.featuredDeals.value;
   store.regularReps = elements.regularReps.value;
@@ -1087,7 +1069,7 @@ function addStore() {
     helpNotes: "",
     newsNotes: "",
     staffingNotes: "",
-    hoursNotes: STANDARD_TIER_HOURS_TEXT,
+    hoursNotes: "",
     openItems: "",
     featuredDeals: "",
     regularReps: "",
@@ -1175,7 +1157,6 @@ function buildProfileFromStore(store) {
     storeName: store.storeName || "",
     contactName: store.contactName || "",
     managerEmail: store.managerEmail || "",
-    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     regularReps: store.regularReps || "",
     preferredWording: store.preferredWording || "",
     goals: (store.metrics || []).map((metric) => ({ name: metric.name, goal: metric.goal, format: metric.format })),
@@ -1202,7 +1183,6 @@ function applyStoredProfileToStore(store, profiles = state.profiles || []) {
     storeName: profile.storeName || store.storeName,
     contactName: profile.contactName || store.contactName,
     managerEmail: profile.managerEmail || store.managerEmail,
-    hoursNotes: profile.hoursNotes || store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     regularReps: profile.regularReps || store.regularReps || "",
     preferredWording: profile.preferredWording || store.preferredWording || "",
     metrics: (store.metrics || []).map((metric) => {
@@ -1241,7 +1221,6 @@ function buildHistorySnapshot(store, status = "snapshot") {
     helpNotes: store.helpNotes || "",
     newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
-    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
     regularReps: store.regularReps || "",
@@ -1276,7 +1255,7 @@ function saveActiveSnapshot() {
   if (!store) return;
   recordSnapshot(store, "snapshot");
   saveAndRender();
-  elements.statusText.textContent = `${store.storeName} weekly snapshot saved.`;
+  elements.statusText.textContent = `${store.storeName} snapshot saved and monthly history updated.`;
 }
 
 function markActiveSent() {
@@ -1315,7 +1294,6 @@ function duplicateLastWeek() {
   store.helpNotes = latest.helpNotes || "";
   store.newsNotes = latest.newsNotes || "";
   store.staffingNotes = latest.staffingNotes || "";
-  store.hoursNotes = latest.hoursNotes || STANDARD_TIER_HOURS_TEXT;
   store.openItems = latest.openItems || "";
   store.featuredDeals = latest.featuredDeals || "";
   store.regularReps = latest.regularReps || "";
@@ -1484,7 +1462,6 @@ function buildRichEmailHtml(store) {
   const optionalSections = [
     ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
-    ["Location Tier Hours", store.hoursNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
     ["Open Items / Assistance Requested", store.openItems]
   ].filter(([, body]) => cleanSentence(body)).map(([title, body]) => `<h3 style="margin:18px 0 6px;color:#173f34;font-size:14px;">${escapeHtml(title)}</h3><p style="margin:0 0 10px;color:#35413d;font-size:13px;line-height:1.55;white-space:pre-line;">${escapeHtml(cleanMultiline(body))}</p>`).join("");
@@ -1504,7 +1481,7 @@ function buildRichEmailHtml(store) {
       <h2 style="margin:20px 0 8px;color:#173f34;font-size:15px;">Results Update</h2>
       <p style="margin:0 0 12px;color:#35413d;font-size:13px;line-height:1.6;">${escapeHtml(buildPolishedSummary(store))}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;border:1px solid #dbe2df;border-collapse:separate;border-spacing:0;">
-        <tr style="background:#f5f8f7;"><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Metric</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">MTD</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Goal</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Remaining</th><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;">Progress</th></tr>
+        <tr style="background:#f5f8f7;"><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;letter-spacing:0;">Metric</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">MTD</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Goal</th><th style="padding:8px;text-align:right;color:#5f6d68;font-size:10px;text-transform:uppercase;">Remaining</th><th style="padding:8px;text-align:left;color:#5f6d68;font-size:10px;text-transform:uppercase;">Progress</th></tr>
         ${metrics}
       </table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #b8d8cc;background:#eff8f4;"><tr><td style="padding:12px 14px;"><strong style="display:block;color:#087b61;font-size:12px;">Focus this week</strong><span style="display:block;margin-top:4px;color:#35413d;font-size:13px;line-height:1.5;">${escapeHtml(insight.focus)}</span></td></tr></table>
@@ -1523,7 +1500,6 @@ function buildOptionalEmailSections(store) {
   const sections = [
     ["News", store.newsNotes],
     ["Staffing Update", store.staffingNotes],
-    ["Location Tier Hours", store.hoursNotes],
     ["Featured Device/Carrier Deals", store.featuredDeals],
     ["Open Items / Assistance Requested", store.openItems]
   ];
@@ -2124,7 +2100,6 @@ function backupSettings() {
       storeName: store.storeName || "",
       newsNotes: store.newsNotes || "",
       staffingNotes: store.staffingNotes || "",
-      hoursNotes: store.hoursNotes || "",
       openItems: store.openItems || "",
       featuredDeals: store.featuredDeals || "",
       regularReps: store.regularReps || "",
@@ -2182,7 +2157,6 @@ function restoreStoreGoals(storeGoals) {
     if (!store) return;
     store.newsNotes = saved.newsNotes || store.newsNotes || "";
     store.staffingNotes = saved.staffingNotes || store.staffingNotes || "";
-    store.hoursNotes = saved.hoursNotes || store.hoursNotes || "";
     store.openItems = saved.openItems || store.openItems || "";
     store.featuredDeals = saved.featuredDeals || store.featuredDeals || "";
     store.regularReps = saved.regularReps || store.regularReps || "";
@@ -2607,15 +2581,15 @@ function normalizeTextReportImport(text) {
   const headers = rows[0]?.map(normalizeHeader) || [];
 
   if (headers.includes("storenumber") && hasReportMetricHeader(headers)) {
-    return ensureExpectedStores(normalizePerformanceReport(rows.slice(1), headers));
+    return ensureExpectedStores(normalizePerformanceReport(rows.slice(1), headers), text);
   }
 
   const ocrImport = normalizeOcrReport(text);
   if (ocrImport.stores.length) {
-    return ensureExpectedStores(ocrImport);
+    return ensureExpectedStores(ocrImport, text);
   }
 
-  return ensureExpectedStores(normalizeCsvImport(text));
+  return ensureExpectedStores(normalizeCsvImport(text), text);
 }
 
 function normalizeCsvImport(text) {
@@ -2644,7 +2618,7 @@ function normalizeCsvImport(text) {
         helpNotes: record.helpnotes || "",
         newsNotes: record.newsnotes || record.news || "",
         staffingNotes: record.staffingnotes || record.staffing || "",
-        hoursNotes: record.hoursnotes || record.locationhours || record.hours || STANDARD_TIER_HOURS_TEXT,
+        hoursNotes: record.hoursnotes || record.locationhours || record.hours || "",
         openItems: record.openitems || record.assistancerequested || "",
         featuredDeals: record.featureddeals || record.devicedeals || record.deals || "",
         metrics: []
@@ -2688,7 +2662,7 @@ function normalizePerformanceReport(rows, headers) {
         helpNotes: buildHelpNote(record, benchmark),
         newsNotes: "",
         staffingNotes: "",
-        hoursNotes: STANDARD_TIER_HOURS_TEXT,
+        hoursNotes: "",
         openItems: "",
         featuredDeals: "",
         metrics
@@ -2723,7 +2697,7 @@ function normalizeOcrReport(text) {
       helpNotes: buildHelpNote(record, benchmark),
       newsNotes: "",
       staffingNotes: "",
-      hoursNotes: STANDARD_TIER_HOURS_TEXT,
+      hoursNotes: "",
       openItems: "",
       featuredDeals: "",
       metrics: performanceMetricsFromRecord(record)
@@ -2732,13 +2706,15 @@ function normalizeOcrReport(text) {
   return { stores };
 }
 
-function ensureExpectedStores(imported) {
+function ensureExpectedStores(imported, sourceText = "") {
   const stores = Array.isArray(imported.stores) ? imported.stores : [];
   const existingNumbers = new Set(stores.map((store) => String(store.storeNumber || "").trim()).filter(Boolean));
+  const seenNumbers = storeNumbersSeenInText(sourceText);
 
   expectedStoreMappings().forEach((mapping) => {
     const storeNumber = String(mapping.storeNumber || "").trim();
     if (!storeNumber || existingNumbers.has(storeNumber)) return;
+    if (!PRIMARY_EXPECTED_STORE_NUMBERS.has(storeNumber) && !seenNumbers.has(storeNumber)) return;
 
     stores.push(normalizeStore({
       storeNumber,
@@ -2750,7 +2726,7 @@ function ensureExpectedStores(imported) {
       helpNotes: "Please review the month-to-date numbers for this store and update any unread values before sending.",
       newsNotes: "",
       staffingNotes: "",
-      hoursNotes: STANDARD_TIER_HOURS_TEXT,
+      hoursNotes: "",
       openItems: "",
       featuredDeals: "",
       metrics: metricDefaults.map((metric) => ({ ...metric, mtd: 0 }))
@@ -2759,6 +2735,18 @@ function ensureExpectedStores(imported) {
   });
 
   return { stores };
+}
+
+function storeNumbersSeenInText(text) {
+  const seen = new Set();
+  const haystack = String(text || "");
+  expectedStoreMappings().forEach((mapping) => {
+    const storeNumber = String(mapping.storeNumber || "").trim();
+    if (storeNumber && new RegExp(`\\b${escapeRegExp(storeNumber)}\\b`).test(haystack)) {
+      seen.add(storeNumber);
+    }
+  });
+  return seen;
 }
 
 function expectedStoreMappings() {
@@ -2956,7 +2944,7 @@ function normalizeStore(store) {
     helpNotes: store.helpNotes || "",
     newsNotes: store.newsNotes || "",
     staffingNotes: store.staffingNotes || "",
-    hoursNotes: store.hoursNotes || STANDARD_TIER_HOURS_TEXT,
+    hoursNotes: store.hoursNotes || "",
     openItems: store.openItems || "",
     featuredDeals: store.featuredDeals || "",
     regularReps: store.regularReps || "",
