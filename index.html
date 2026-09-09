@@ -1,138 +1,75 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Weekly Premium Email Builder</title>
-    <link rel="icon" href="assets/icon.ico">
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand-lockup">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></span>
-        <h1>Weekly Premium Email Builder</h1>
-      </div>
-      <div class="top-actions">
-        <button id="pasteScreenshotBtn" class="primary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h8"></path><path d="M9 3h6v4H9z"></path><rect x="5" y="5" width="14" height="16" rx="2"></rect><path d="M12 11v6"></path><path d="m9 14 3 3 3-3"></path></svg>Paste Screenshot</button>
-        <label class="file-button button-with-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18M9 4v16M15 4v16"></path></svg>Import Excel<input id="importInput" type="file" accept=".json,.csv,.tsv,.txt,.xlsx,.xls,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,text/csv,text/tab-separated-values,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
-        <button id="addStoreBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M3 21v-2a6 6 0 0 1 6-6h2"></path><path d="M18 14v6M15 17h6"></path></svg>Add Store</button>
-        <button id="exportBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 7 4-4 4 4"></path><path d="M5 13v7h14v-7"></path></svg>Export</button>
-      </div>
-    </header>
-
-    <main class="layout">
-      <aside class="sidebar">
-        <div class="sidebar-head"><span>Stores</span><button id="resetBtn" class="icon-button" type="button" title="Reset sample data" aria-label="Reset sample data"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6"></path><path d="M20 12a8 8 0 1 1-2.34-5.66L4 20"></path></svg></button></div>
-        <nav id="storeTabs" class="store-tabs" aria-label="Store list"></nav>
-      </aside>
-
-      <section class="workspace">
-        <section class="readiness-band" aria-labelledby="readinessHeading">
-          <div class="compact-title"><h2 id="readinessHeading">Weekly Readiness</h2><p>See what is ready, what needs review, and what has been sent.</p></div>
-          <div id="readinessBoard" class="readiness-board"></div>
-        </section>
-
-        <div class="dashboard-grid">
-          <div class="primary-workspace">
-            <form id="storeForm" class="editor">
-              <div class="operations-overview">
-                <section class="band profile-band">
-                  <div class="section-head compact"><div><h2>Store Profile</h2><p>Reusable details, representatives, and goals.</p></div><div class="button-row"><button id="applyProfileBtn" class="text-button" type="button">Apply Profile</button><button id="saveProfileBtn" class="primary small-button" type="button">Save Profile</button></div></div>
-                  <div id="profileSummary" class="profile-summary"></div>
-                </section>
-
-                <section class="band coaching-band">
-                  <div class="section-head compact"><div><h2>Coaching Insight</h2><p>Automatically calculated from MTD progress.</p></div></div>
-                  <div id="coachingInsight" class="coaching-insight"></div>
-                </section>
-
-                <section class="band safety-band">
-                  <div class="section-head compact"><div><h2>Pre-send Review</h2><p>Seven checks before an email leaves the app.</p></div></div>
-                  <div id="preSendReview" class="pre-send-review"></div>
-                </section>
-              </div>
-
-              <details class="weekly-data-panel" open>
-                <summary><span><strong>Weekly Data Workspace</strong><small>Import, store details, visits, notes, and monthly goals</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary>
-                <div class="weekly-data-content">
-                  <div class="workflow-grid">
-                    <section class="band import-band">
-                      <div class="section-head"><div><h2>Import Performance</h2><p>Bring in the latest report and refresh every draft.</p></div><button id="pasteImportBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="12" height="16" rx="2"></rect><path d="M9 3h6v4H9z"></path><path d="M9 12h6M9 16h4"></path></svg>Paste Report Rows</button></div>
-                      <div id="screenshotDropZone" class="drop-zone" tabindex="0" role="button" aria-label="Paste screenshot or import Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 15v5h14v-5"></path></svg><strong>Paste screenshot or import Excel</strong><span>Press Ctrl+V for a screenshot, or choose Import Excel above.</span></div>
-                      <div class="report-period-fields">
-                        <label>Import into<select id="importPeriod"><option value="current">This month</option><option value="previous">Last month</option></select></label>
-                        <label>Results through<input id="reportAsOf" type="date" required></label>
-                      </div>
-                      <pre id="reportPreview" class="report-preview">Recognized report rows will appear here after a valid paste.</pre>
-                      <div class="import-status-grid"><div><span class="status-label">Import</span><p id="ocrStatus" class="status-line">Waiting for a screenshot or report paste.</p></div><div><span class="status-label">Smart Writer</span><p id="writerStatus" class="status-line">Ready to draft store emails.</p></div><label class="multiplier-control">MTD multiplier<input id="mtdMultiplier" type="number" min="1" max="31" step="1"></label></div>
-                      <p id="multiplierStatus" class="sr-only">Prepaid Sales, Prepaid Activation, and Accessory Sales use this multiplier when importing PSPD values.</p>
-                    </section>
-
-                    <section class="band store-details-band">
-                      <div class="section-head"><div><h2>Store Details</h2><p>Greeting, manager, profile preferences, and reporting week.</p></div><button id="deleteStoreBtn" class="icon-button danger" type="button" title="Delete store" aria-label="Delete store"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="m7 7 1 14h8l1-14"></path><path d="M10 11v6M14 11v6"></path></svg></button></div>
-                      <div class="form-grid store-form-grid">
-                        <label>Store number<input id="storeNumber" name="storeNumber" type="text"></label>
-                        <label>Store name<input id="storeName" name="storeName" type="text" required></label>
-                        <label>Contact name<input id="contactName" name="contactName" type="text" required></label>
-                        <label>Manager email<input id="managerEmail" name="managerEmail" type="email"></label>
-                        <label>Week start<input id="weekStart" name="weekStart" type="date"></label>
-                        <label>Week end<input id="weekEnd" name="weekEnd" type="date"></label>
-                        <label>Regular representatives<input id="regularReps" name="regularReps" type="text" placeholder="Henry Stewart, Shane Kelly"></label>
-                        <label>Preferred wording<input id="preferredWording" name="preferredWording" type="text" placeholder="A preferred closing sentence or tone note"></label>
-                      </div>
-                    </section>
-                  </div>
-
-                  <details class="band setup-panel">
-                    <summary><span><strong>Store Number Settings and Import Review</strong><small>Mappings, backups, and imported metric checks</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary>
-                    <div class="setup-content"><section class="setup-section"><div class="section-head compact"><div><h2>Store Number Settings</h2><p>Connect report numbers with store contacts.</p></div><div class="button-row"><button id="addStoreMappingBtn" class="secondary" type="button">Add Store Number</button><button id="backupSettingsBtn" class="secondary" type="button">Backup</button><label class="file-button">Restore<input id="restoreSettingsInput" type="file" accept=".json,application/json"></label><button id="saveStoreMappingsBtn" class="primary" type="button">Save Settings</button></div></div><div id="storeMappingsList" class="mapping-list" aria-label="Store number mappings"></div><p id="mappingStatus" class="status-line">Saved store names apply automatically after import.</p></section><section class="setup-section"><div class="section-head compact"><div><h2>Import Review</h2><p>Check store numbers and metrics before sending.</p></div></div><div id="importReview" class="review-table" aria-label="Import review"></div></section></div>
-                  </details>
-
-                  <section class="band editing-grid">
-                    <div class="visits-pane"><div class="section-head compact"><div><h2>Visits</h2><p>Who the store can expect to see.</p></div><button id="addVisitBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add Visit</button></div><div class="visit-columns" aria-hidden="true"><span>Date</span><span>Representative</span><span></span></div><div id="visitsList" class="rows"></div></div>
-                    <div class="notes-pane"><div class="section-head compact"><div><h2>Notes</h2><p>Store context used by Smart Writer.</p></div></div><div class="notes-grid"><label>Important notes<textarea id="importantNotes" rows="4"></textarea></label><label>How the store can help<textarea id="helpNotes" rows="4"></textarea></label><label>News<textarea id="newsNotes" rows="4" placeholder="Store news, local updates, events..."></textarea></label><label>Staffing update<textarea id="staffingNotes" rows="4" placeholder="Sales Manager, coverage, open roles..."></textarea></label><label>Open items / assistance requested<textarea id="openItems" rows="4" placeholder="Printer issues, store support requests..."></textarea></label><label>Featured device/carrier deals<textarea id="featuredDeals" rows="4" placeholder="Current device and carrier offers..."></textarea></label></div></div>
-                  </section>
-
-                  <section class="band metrics-band"><div class="section-head"><div><h2>MTD Numbers and Goals</h2><p>Current performance, targets, remaining gap, and progress.</p></div><button id="addMetricBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Add Metric</button></div><div id="metricsList" class="metric-table" aria-label="Metrics table"></div></section>
-                </div>
-              </details>
-            </form>
-
-            <section class="preview">
-              <div class="section-head preview-head"><div><h2>Email Preview - Outlook Ready</h2><p id="statusText">Saved locally in this app.</p></div><div class="button-row primary-email-actions"><button id="copyRichEmailBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V4H4v12h4"></path></svg>Copy Rich Email</button><select id="outlookModeSelect" aria-label="Outlook draft destination"><option value="compose">New Outlook (No Sign-In)</option><option value="classic">Classic Outlook</option></select><button id="createOutlookDraftBtn" class="secondary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path></svg><span id="createOutlookDraftLabel">Open in New Outlook</span></button><button id="createAllDraftsBtn" class="primary button-with-icon" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="m4 7 8 6 8-6"></path><path d="M18 2v6M15 5h6"></path></svg><span id="createAllDraftsLabel">Start All Drafts</span></button></div></div>
-              <div class="preview-utility"><div id="emailChecklist" class="checklist" aria-label="Email checklist"></div><div class="button-row"><button id="sendEmailBtn" class="secondary" type="button">Open Email</button><button id="markSentBtn" class="secondary" type="button">Mark Sent</button><button id="saveEmailBtn" class="secondary" type="button">Save Text</button><select id="aiStyleSelect" aria-label="AI editing style"><option value="polish">Polish</option><option value="concise">Concise</option><option value="friendly">Friendly</option><option value="professional">Professional</option></select><button id="polishEmailBtn" class="secondary" type="button">AI Polish</button><button id="copyEmailBtn" class="secondary" type="button">Copy Plain Text</button><button id="copyAllBtn" class="secondary" type="button">Copy All</button><button id="polishAllBtn" class="secondary" type="button">AI Polish All</button><button id="aiSettingsBtn" class="text-button" type="button">AI Settings</button><button id="saveAllBtn" class="secondary" type="button">Save All</button></div></div>
-              <div id="emailPreview" class="rich-email-preview"></div>
-            </section>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weekly Premium Email Builder</title>
+  <link rel="icon" href="assets/icon.ico">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand"><img src="assets/icon.ico" width="32" height="32" alt=""><div><strong>Premium</strong><span>Partnership workspace</span></div></div>
+    <div class="header-context"><span class="status-dot"></span>Weekly updates<span class="header-divider"></span><span id="portfolioCount"></span></div>
+    <button class="icon-button mobile-stores" id="toggleStores" type="button" title="Show stores" aria-label="Show stores" aria-expanded="false"><i data-lucide="panel-left"></i></button>
+    <div class="header-actions"><button id="exportBtn" class="icon-button" type="button" title="Export workspace" aria-label="Export workspace"><i data-lucide="download"></i></button><button type="button" class="secondary" data-go="reports"><i data-lucide="upload"></i>Import report</button></div>
+  </header>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Stores">
+      <div class="sidebar-heading"><h2>Your stores</h2><button id="addStoreBtn" class="icon-button" type="button" title="Add store" aria-label="Add store"><i data-lucide="plus"></i></button></div>
+      <label class="search-field"><i data-lucide="search"></i><input id="storeSearch" type="search" placeholder="Search name or number" aria-label="Search stores"></label>
+      <nav id="storeTabs" class="store-tabs" aria-label="Store list"></nav>
+      <p id="storeSearchEmpty" class="empty-state" hidden>No matching stores.</p>
+      <div class="sidebar-footer"><i data-lucide="hard-drive"></i><span id="statusText" role="status">Saved on this computer</span></div>
+    </aside>
+    <main class="workspace">
+      <div class="store-heading"><div><div class="eyebrow">STORE WORKSPACE <span id="activeStoreNumber"></span></div><h1 id="activeStoreHeading">Weekly partnership</h1><div class="store-meta"><span id="activeStoreContact"></span><span id="activeStorePeriod"></span></div></div><button type="button" class="primary" data-go="email"><i data-lucide="mail"></i>Review email<i data-lucide="arrow-up-right"></i></button></div>
+      <nav class="view-tabs" role="tablist" aria-label="Workspace views">
+        <button type="button" role="tab" id="tab-overview" aria-controls="view-overview" aria-selected="true" data-view="overview"><i data-lucide="layout-dashboard"></i>Overview</button>
+        <button type="button" role="tab" id="tab-reports" aria-controls="view-reports" aria-selected="false" data-view="reports" tabindex="-1"><i data-lucide="sheet"></i>Reports</button>
+        <button type="button" role="tab" id="tab-email" aria-controls="view-email" aria-selected="false" data-view="email" tabindex="-1"><i data-lucide="mail"></i>Email</button>
+        <button type="button" role="tab" id="tab-history" aria-controls="view-history" aria-selected="false" data-view="history" tabindex="-1"><i data-lucide="history"></i>History</button>
+        <button type="button" role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" data-view="settings" tabindex="-1"><i data-lucide="settings-2"></i>Settings</button>
+      </nav>
+      <form id="storeForm" autocomplete="off">
+        <section id="view-overview" class="view" role="tabpanel" aria-labelledby="tab-overview">
+          <div class="section-heading"><h2>Month at a glance</h2><span id="reportPeriodLabel" class="muted"></span></div>
+          <div id="performanceSummary" class="performance-summary"></div>
+          <section class="page-section"><div class="section-heading"><div><h2>Performance &amp; goals</h2><span class="section-caption">MONTH TO DATE</span></div><button id="addMetricBtn" type="button" class="text-button"><i data-lucide="plus"></i>Add metric</button></div><div class="table-scroll"><div class="metric-columns" aria-hidden="true"><span>Metric</span><span>Actual</span><span>Goal</span><span>Remaining</span><span>Format</span><span>Progress</span><span></span></div><div id="metricsList" class="metric-table" aria-label="Metrics table"></div></div></section>
+          <div class="overview-bottom">
+            <section class="page-section coverage-section"><div class="section-heading"><h2><i data-lucide="calendar-days"></i>Weekly coverage</h2><button id="addVisitBtn" type="button" class="icon-button" title="Add visit" aria-label="Add visit"><i data-lucide="plus"></i></button></div><div class="date-range"><label>Week start<input id="weekStart" type="date"></label><i data-lucide="arrow-right"></i><label>Week end<input id="weekEnd" type="date"></label></div><div class="visit-columns"><span>Date</span><span>Representative</span><span></span></div><div id="visitsList" class="rows"></div></section>
+            <section class="page-section"><div class="section-heading"><h2><i data-lucide="notebook-pen"></i>Partnership notes</h2></div><div class="notes-grid"><label>Important notes<textarea id="importantNotes" rows="3"></textarea></label><label>How the store can help<textarea id="helpNotes" rows="3"></textarea></label><details class="disclosure"><summary>Staffing, news &amp; open items<i data-lucide="chevron-down"></i></summary><div class="notes-grid"><label>News<textarea id="newsNotes" rows="3"></textarea></label><label>Staffing update<textarea id="staffingNotes" rows="3"></textarea></label><label>Open items / assistance requested<textarea id="openItems" rows="3"></textarea></label><label>Featured device/carrier deals<textarea id="featuredDeals" rows="3"></textarea></label></div></details></div></section>
           </div>
-
-          <aside class="history-panel">
-            <div class="history-head"><div><h2>History</h2><p>Monthly rollups, weekly snapshots, and performance movement.</p></div><div class="history-actions"><button id="duplicateLastWeekBtn" class="text-button" type="button">Duplicate Last Week</button><button id="saveSnapshotBtn" class="secondary small-button" type="button">Save Snapshot</button></div></div>
-            <section class="monthly-history-section" aria-labelledby="monthlyHistoryHeading">
-              <div class="history-subhead"><h3 id="monthlyHistoryHeading">Monthly History</h3><p>Latest saved MTD snapshot for each month.</p></div>
-              <div id="monthlyHistoryList" class="monthly-history-list"></div>
-            </section>
-            <div class="history-subhead"><h3>Weekly Snapshots</h3><p>Each saved week with metric movement.</p></div>
-            <div id="historyList" class="history-list"></div>
-          </aside>
-        </div>
-      </section>
-    </main>
-
-    <dialog id="aiSettingsDialog" class="settings-dialog">
-      <form method="dialog" class="settings-dialog-card">
-        <div class="section-head"><div><h2>AI Editor Settings</h2><p id="aiSettingsStatus">Your API key is encrypted and stored only on this computer.</p></div></div>
-        <label>OpenAI API key<input id="aiKeyInput" type="password" autocomplete="off" placeholder="sk-..."></label>
-        <div class="button-row"><button value="cancel" class="secondary" type="submit">Cancel</button><button id="saveAIKeyBtn" class="primary" type="button">Save Securely</button></div>
+          <section class="page-section"><div class="section-heading"><h2><i data-lucide="chart-no-axes-combined"></i>Weekly focus</h2></div><div id="coachingInsight" class="coaching-insight"></div></section>
+          <details class="disclosure portfolio-disclosure"><summary>All stores at a glance<i data-lucide="chevron-down"></i></summary><div id="readinessBoard" class="readiness-board"></div></details>
+        </section>
+        <section id="view-reports" class="view" role="tabpanel" aria-labelledby="tab-reports" hidden>
+          <div class="section-heading"><h2>Import performance</h2><span class="section-caption">ALL STORES</span></div>
+          <div class="import-layout"><section class="import-source"><div class="report-period-fields"><label>Import into<select id="importPeriod"><option value="current">This month</option><option value="previous">Last month</option></select></label><label>Results through<input id="reportAsOf" type="date"></label><label>Reporting days<input id="mtdMultiplier" type="number" min="1" max="31" step="1"></label></div><div id="screenshotDropZone" class="drop-zone" tabindex="0" role="group" aria-label="Screenshot import"><i data-lucide="scan-line"></i><strong>Store performance report</strong><div class="button-row"><label class="file-button primary"><i data-lucide="file-spreadsheet"></i>Choose file<input id="importInput" type="file" accept=".json,.csv,.tsv,.txt,.xlsx,.xls,.png,.jpg,.jpeg,.webp"></label><button id="pasteScreenshotBtn" type="button" class="secondary"><i data-lucide="clipboard-paste"></i>Paste screenshot</button></div></div><button id="pasteImportBtn" class="text-button" type="button"><i data-lucide="clipboard-list"></i>Paste report rows</button><details class="disclosure"><summary>Recognized report<i data-lucide="chevron-down"></i></summary><pre id="reportPreview" class="report-preview">No report loaded.</pre></details></section><aside class="import-status"><h3>Import status</h3><div class="status-block"><i data-lucide="file-check-2"></i><div><strong>Report</strong><p id="ocrStatus" role="status">No report loaded.</p></div></div><div class="status-block"><i data-lucide="pen-line"></i><div><strong>Smart Writer</strong><p id="writerStatus" role="status">Ready</p></div></div><p id="multiplierStatus" class="muted"></p></aside></div>
+          <section class="page-section"><div class="section-heading"><h2>Imported results</h2></div><div class="table-scroll"><div class="review-columns" aria-hidden="true"><span>Store #</span><span>Store</span><span>Postpaid</span><span>Prepaid sales</span><span>Prepaid acts</span><span>Protection</span><span>Accessories</span></div><div id="importReview" class="review-table" aria-label="Import review"></div></div></section>
+        </section>
+        <section id="view-email" class="view" role="tabpanel" aria-labelledby="tab-email" hidden>
+          <div class="email-toolbar"><div class="segmented" role="group" aria-label="Email format"><button type="button" data-preview="rich" aria-pressed="true">Email layout</button><button type="button" data-preview="plain" aria-pressed="false">Plain text</button></div><div class="button-row"><button id="copyRichEmailBtn" class="secondary" type="button"><i data-lucide="copy"></i>Copy email</button><button id="saveEmailBtn" class="icon-button" type="button" title="Save email text" aria-label="Save email text"><i data-lucide="download"></i></button><button id="createOutlookDraftBtn" class="primary" type="button"><i data-lucide="send"></i><span id="createOutlookDraftLabel">Open in New Outlook</span></button></div></div>
+          <div class="email-workspace"><div class="email-paper"><div class="recipient-line"><span>To</span><strong id="emailRecipient"></strong></div><div class="recipient-line"><span>Cc</span><strong>KHartley@premiumretail.com</strong></div><div id="emailPreview" class="rich-email-preview"></div></div><aside class="email-controls"><section><h3>Ready to send</h3><div id="emailChecklist" class="checklist" aria-label="Email checklist"></div><div id="preSendReview" class="pre-send-review"></div><button id="markSentBtn" type="button" class="secondary full-width"><i data-lucide="check-check"></i>Mark as sent</button></section><section><h3>Email options</h3><label>Outlook destination<select id="outlookModeSelect"><option value="compose">New Outlook (No Sign-In)</option><option value="classic">Classic Outlook</option></select></label><div class="button-row"><button id="sendEmailBtn" class="text-button" type="button">Open email</button><button id="copyEmailBtn" class="text-button" type="button">Copy plain text</button></div></section><details class="disclosure"><summary>AI editor<i data-lucide="chevron-down"></i></summary><label>Writing style<select id="aiStyleSelect"><option value="polish">Polish</option><option value="concise">Concise</option><option value="friendly">Friendly</option><option value="professional">Professional</option></select></label><div class="button-row"><button id="polishEmailBtn" class="secondary" type="button"><i data-lucide="wand-sparkles"></i>AI polish</button><button id="aiSettingsBtn" class="icon-button" type="button" title="AI settings" aria-label="AI settings"><i data-lucide="settings-2"></i></button></div></details><details class="disclosure"><summary>All-store actions<i data-lucide="chevron-down"></i></summary><div class="batch-actions"><button id="createAllDraftsBtn" class="secondary" type="button"><i data-lucide="mails"></i><span id="createAllDraftsLabel">Start all drafts</span></button><button id="saveAllBtn" class="secondary" type="button"><i data-lucide="download"></i>Save all emails</button><button id="copyAllBtn" class="secondary" type="button"><i data-lucide="copy"></i>Copy all emails</button><button id="polishAllBtn" class="secondary" type="button"><i data-lucide="wand-sparkles"></i>AI polish all</button></div></details></aside></div>
+        </section>
+        <section id="view-history" class="view" role="tabpanel" aria-labelledby="tab-history" hidden>
+          <div class="section-heading"><h2>Monthly history</h2><div class="button-row"><button id="duplicateLastWeekBtn" class="secondary" type="button"><i data-lucide="calendar-arrow-up"></i>Duplicate last week</button><button id="saveSnapshotBtn" class="primary" type="button"><i data-lucide="bookmark-plus"></i>Save snapshot</button></div></div><div id="monthlyHistoryList" class="monthly-history-list"></div><section class="page-section"><div class="section-heading"><h2>Weekly snapshots</h2></div><div id="historyList" class="history-list"></div></section>
+        </section>
+        <section id="view-settings" class="view" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <div class="section-heading"><h2>Store profile</h2><div class="button-row"><button id="applyProfileBtn" class="secondary" type="button">Apply saved profile</button><button id="saveProfileBtn" class="primary" type="button"><i data-lucide="save"></i>Save profile</button></div></div><div class="settings-layout"><div class="form-grid"><label>Store number<input id="storeNumber" type="text"></label><label>Store name<input id="storeName" type="text" required></label><label>Manager name<input id="contactName" type="text" required></label><label>Manager email<input id="managerEmail" type="email"></label><label class="wide">Regular representatives<input id="regularReps" type="text"></label><label class="wide">Preferred wording<input id="preferredWording" type="text"></label></div><aside><h3>Saved profile</h3><div id="profileSummary" class="profile-summary"></div><button id="deleteStoreBtn" class="text-button danger" type="button"><i data-lucide="trash-2"></i>Delete this store</button></aside></div>
+          <section class="page-section"><div class="section-heading"><h2>Store directory</h2><div class="button-row"><button id="addStoreMappingBtn" class="secondary" type="button"><i data-lucide="plus"></i>Add store number</button><button id="saveStoreMappingsBtn" class="primary" type="button"><i data-lucide="save"></i>Save directory</button></div></div><div class="table-scroll"><div class="mapping-columns"><span>Store #</span><span>Store name</span><span>Manager</span><span>Email</span><span></span></div><div id="storeMappingsList" class="mapping-list" aria-label="Store number mappings"></div></div><p id="mappingStatus" class="muted" role="status"></p></section><section class="page-section"><div class="section-heading"><h2>Workspace data</h2></div><div class="button-row"><button id="backupSettingsBtn" class="secondary" type="button"><i data-lucide="archive"></i>Back up settings</button><label class="file-button secondary"><i data-lucide="archive-restore"></i>Restore settings<input id="restoreSettingsInput" type="file" accept=".json,application/json"></label><button id="resetBtn" class="text-button danger" type="button">Reset sample data</button></div></section>
+        </section>
       </form>
-    </dialog>
-
-    <template id="visitTemplate"><div class="row visit-row"><input class="visit-date" type="date" aria-label="Visit date"><input class="visit-person" type="text" placeholder="Representative" aria-label="Representative"><button class="icon-button remove-visit" type="button" title="Remove visit" aria-label="Remove visit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div></template>
-    <template id="metricTemplate"><div class="metric-row"><input class="metric-name" type="text" aria-label="Metric name"><input class="metric-mtd" type="number" step="0.01" aria-label="MTD number"><input class="metric-goal" type="number" step="0.01" aria-label="Monthly goal"><div class="metric-remaining" aria-label="Remaining to goal"></div><select class="metric-format" aria-label="Metric format"><option value="number">Number</option><option value="percent">Percent</option><option value="currency">Currency</option></select><div class="metric-progress" aria-label="Progress"></div><button class="icon-button remove-metric" type="button" title="Remove metric" aria-label="Remove metric"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div></template>
-    <template id="mappingTemplate"><div class="mapping-row"><input class="mapping-number" type="text" inputmode="numeric" placeholder="Store #" aria-label="Store number"><input class="mapping-name" type="text" placeholder="Store name" aria-label="Store name"><input class="mapping-contact" type="text" placeholder="Contact" aria-label="Contact name"><input class="mapping-email" type="email" placeholder="manager@email.com" aria-label="Manager email"><button class="icon-button remove-mapping" type="button" title="Remove mapping" aria-label="Remove mapping"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div></template>
-
-    <script src="vendor/tesseract/tesseract.min.js"></script>
-    <script src="vendor/xlsx/xlsx.full.min.js"></script>
-    <script src="app.js"></script>
-  </body>
+    </main>
+  </div>
+  <dialog id="aiSettingsDialog" class="settings-dialog"><form method="dialog"><div class="section-heading"><h2>AI editor settings</h2></div><p id="aiSettingsStatus"></p><label>OpenAI API key<input id="aiKeyInput" type="password" autocomplete="off"></label><div class="button-row"><button class="secondary" value="cancel" type="submit">Cancel</button><button id="saveAIKeyBtn" class="primary" type="button">Save securely</button></div></form></dialog>
+  <template id="visitTemplate"><div class="visit-row"><input class="visit-date" type="date" aria-label="Visit date"><input class="visit-person" type="text" placeholder="Representative" aria-label="Representative"><button class="icon-button remove-visit" type="button" title="Remove visit" aria-label="Remove visit"><i data-lucide="x"></i></button></div></template>
+  <template id="metricTemplate"><div class="metric-row"><input class="metric-name" type="text" aria-label="Metric name"><input class="metric-mtd" type="number" step="0.01" aria-label="MTD number"><input class="metric-goal" type="number" step="0.01" aria-label="Monthly goal"><div class="metric-remaining" aria-label="Remaining to goal"></div><select class="metric-format" aria-label="Metric format"><option value="number">Number</option><option value="percent">Percent</option><option value="currency">Currency</option></select><div class="metric-progress" aria-label="Progress"></div><button class="icon-button remove-metric" type="button" title="Remove metric" aria-label="Remove metric"><i data-lucide="x"></i></button></div></template>
+  <template id="mappingTemplate"><div class="mapping-row"><input class="mapping-number" type="text" inputmode="numeric" placeholder="Store #" aria-label="Store number"><input class="mapping-name" type="text" placeholder="Store name" aria-label="Store name"><input class="mapping-contact" type="text" placeholder="Manager" aria-label="Contact name"><input class="mapping-email" type="email" placeholder="manager@email.com" aria-label="Manager email"><button class="icon-button remove-mapping" type="button" title="Remove mapping" aria-label="Remove mapping"><i data-lucide="x"></i></button></div></template>
+  <script src="vendor/lucide.min.js"></script>
+  <script src="vendor/tesseract/tesseract.min.js"></script>
+  <script src="vendor/xlsx/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+  <script src="workspace-ui.js"></script>
+</body>
 </html>

@@ -484,6 +484,7 @@ function render() {
   renderPreSendReview();
   renderHistory();
   renderPreview();
+  if (!IS_FEATURE_TEST) window.dispatchEvent(new Event("workspace-render"));
 }
 
 function renderImportSettings() {
@@ -958,7 +959,11 @@ function renderTabs() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `store-tab${store.id === activeStoreId ? " active" : ""}`;
-    button.innerHTML = `<strong>${escapeHtml(store.storeName || "Untitled Store")}</strong><span>${escapeHtml(store.contactName || "No contact")}</span><small class="store-readiness ${readiness.state}">${escapeHtml(readiness.label)}</small>`;
+    button.dataset.storeId = store.id;
+    button.dataset.search = `${store.storeNumber || ""} ${store.storeName || ""} ${store.contactName || ""}`.toLowerCase();
+    button.setAttribute("aria-current", store.id === activeStoreId ? "true" : "false");
+    button.title = `${store.storeName || "Untitled Store"}: ${readiness.label}`;
+    button.innerHTML = `<span class="store-number">${escapeHtml(store.storeNumber || "--")}</span><span class="store-tab-copy"><strong>${escapeHtml(store.storeName || "Untitled Store")}</strong><small>${escapeHtml(store.contactName || "No contact")}</small></span><span class="store-state ${readiness.state}" aria-label="${escapeHtml(readiness.label)}"></span>`;
     button.addEventListener("click", () => {
       activeStoreId = store.id;
       render();
@@ -1014,7 +1019,7 @@ function createVisitRow(visit, index) {
   row.querySelector(".visit-date").addEventListener("input", (event) => updateVisit(index, "date", event.target.value));
   row.querySelector(".visit-person").addEventListener("input", (event) => updateVisit(index, "person", event.target.value));
   row.querySelectorAll("input").forEach((input) => {
-    input.addEventListener("blur", () => saveAndRender());
+    input.addEventListener("blur", () => saveWithoutRender());
   });
   row.querySelector(".remove-visit").addEventListener("click", () => {
     getActiveStore().visits.splice(index, 1);
@@ -1037,7 +1042,7 @@ function createMetricRow(metric, index) {
   row.querySelector(".metric-goal").addEventListener("input", (event) => updateMetric(index, "goal", metricInputValue(event.target.value), row));
   row.querySelector(".metric-format").addEventListener("input", (event) => updateMetric(index, "format", event.target.value, row));
   row.querySelectorAll("input, select").forEach((input) => {
-    input.addEventListener("blur", () => saveAndRender());
+    input.addEventListener("blur", () => saveWithoutRender());
   });
   row.querySelector(".remove-metric").addEventListener("click", () => {
     getActiveStore().metrics.splice(index, 1);
@@ -1065,10 +1070,9 @@ function metricInputValue(value) {
 
 function renderPreview() {
   const store = getActiveStore();
-  const polished = store?.polishedEmail
-    ? `<section class="ai-polished-preview"><div class="ai-polished-label">AI-polished plain text</div><pre>${escapeHtml(store.polishedEmail)}</pre></section>`
-    : "";
-  elements.emailPreview.innerHTML = `${polished}${buildRichEmailHtml(store)}`;
+  elements.emailPreview.innerHTML = window.emailPreviewMode === "plain"
+    ? `<pre>${escapeHtml(store?.polishedEmail || buildEmail(store))}</pre>`
+    : buildRichEmailHtml(store);
 }
 
 function updateActiveStoreFromForm() {
