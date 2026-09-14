@@ -105,6 +105,79 @@
   const coverageEnd = document.querySelector("#bulkWeekEnd");
   const coverageApply = document.querySelector("#applyBulkCoverageBtn");
   let coverageDraft = [];
+  let readingSchedule = false;
+  async function importScheduleImages(files) {
+    if (readingSchedule || !files.length) return;
+    readingSchedule = true;
+    coverageDialog.querySelectorAll('button, input').forEach((control) => { control.disabled = true; });
+    const status = document.querySelector('#scheduleImportStatus');
+    let worker;
+    try {
+      status.textContent = 'Reading schedule...';
+      worker = await Tesseract.createWorker('eng', 1, getOcrAssetPaths());
+      await worker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+      const schedules = [];
+      for (const file of files) {
+        const source = await loadImage(file);
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(4, Math.max(2, 4000 / source.width));
+        canvas.width = source.width * scale;
+        canvas.height = source.height * scale;
+        const context = canvas.getContext('2d');
+        context.fillStyle = 'white';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        await worker.setParameters({ tessedit_pageseg_mode: '6' });
+        const result = await worker.recognize(canvas);
+        // Sparse recognition recovers store headings above colored schedule tables.
+        await worker.setParameters({ tessedit_pageseg_mode: '11' });
+        const headings = await worker.recognize(canvas);
+        const storeWords = headings.data.words.filter((word) => /^#\d{3,5}$/.test(word.text));
+        for (const word of storeWords) {
+          if (!result.data.words.some((existing) => existing.text === word.text && Math.abs(existing.bbox.y0 - word.bbox.y0) < 20)) result.data.words.push(word);
+        }
+        schedules.push(...parseScheduleImageWords(result.data.words));
+      }
+      const start = schedules[0].visits[0].date;
+      const end = schedules[0].visits[6].date;
+      const seen = new Set();
+      for (const schedule of schedules) {
+        if (schedule.visits[0].date !== start) throw new Error('Upload schedules from the same week together.');
+        if (seen.has(schedule.storeNumber)) throw new Error(`Store #${schedule.storeNumber} appears more than once. Upload one schedule per store.`);
+        seen.add(schedule.storeNumber);
+        if (!coverageDraft.some((store) => String(Number(store.storeNumber)) === schedule.storeNumber)) throw new Error(`Store #${schedule.storeNumber} is not in Settings. Add it before importing.`);
+      }
+      coverageStart.value = start;
+      coverageEnd.value = end;
+      coverageDraft = coverageDraft.map((store) => {
+        const schedule = schedules.find((item) => item.storeNumber === String(Number(store.storeNumber)));
+        return schedule ? { ...store, visits: schedule.visits } : store;
+      });
+      renderCoverage();
+      status.textContent = `${schedules.length} schedule(s) loaded for review: ${schedules.map((s) => '#' + s.storeNumber).join(', ')}. Check names and dates, then Apply to all stores to save. Other stores retain their weekday coverage.`;
+    } catch (error) {
+      status.textContent = `Schedule not imported: ${error.message || String(error)}`;
+    } finally {
+      if (worker) await worker.terminate();
+      readingSchedule = false;
+      coverageDialog.querySelectorAll('button, input').forEach((control) => { control.disabled = false; });
+      const count = datesBetween(coverageStart.value, coverageEnd.value).length;
+      coverageApply.disabled = !count || count > 14;
+    }
+  }
+  document.querySelector('#scheduleImageInput').addEventListener('change', async (event) => {
+    await importScheduleImages([...event.target.files]);
+    event.target.value = '';
+  });
+  coverageDialog.addEventListener('cancel', (event) => { if (readingSchedule) event.preventDefault(); });
+  window.addEventListener('paste', (event) => {
+    if (!coverageDialog.open) return;
+    const files = [...(event.clipboardData?.items || [])].filter((item) => item.type.startsWith('image/')).map((item) => item.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    importScheduleImages(files);
+  }, true);
   function renderCoverage() {
     const dates = datesBetween(coverageStart.value, coverageEnd.value);
     const valid = dates.length > 0 && dates.length <= 14;
@@ -141,6 +214,7 @@
     renderCoverage();
   }
   document.querySelector("#bulkCoverageBtn").addEventListener("click", () => {
+    document.querySelector('#scheduleImportStatus').textContent = '';
     coverageDraft = structuredClone(state.stores);
     coverageStart.value = state.settings.coverageWeekStart || toDateInputValue(startOfCurrentWeek());
     coverageEnd.value = state.settings.coverageWeekEnd || addDaysToInput(coverageStart.value, 6);

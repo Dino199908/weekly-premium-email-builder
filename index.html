@@ -69,6 +69,8 @@
   <dialog id="bulkCoverageDialog" class="coverage-dialog" aria-labelledby="bulkCoverageTitle">
     <div class="section-heading"><h2 id="bulkCoverageTitle">Weekly coverage - all stores</h2><button id="closeBulkCoverageBtn" type="button" class="icon-button" title="Close" aria-label="Close weekly coverage"><i data-lucide="x"></i></button></div>
     <div class="coverage-toolbar"><label>Week start<input id="bulkWeekStart" type="date"></label><label>Week end<input id="bulkWeekEnd" type="date"></label><button id="bulkThisWeekBtn" type="button" class="secondary">This week</button><button id="bulkNextWeekBtn" type="button" class="secondary">Next week<i data-lucide="arrow-right"></i></button></div>
+    <div class="button-row"><label class="file-button secondary">Upload schedule<input id="scheduleImageInput" type="file" accept="image/*" multiple></label></div>
+    <p id="scheduleImportStatus" class="muted" role="status"></p>
     <p id="bulkCoverageStatus" class="muted" role="status"></p>
     <div class="coverage-table-scroll"><table class="coverage-table"><thead id="bulkCoverageHead"></thead><tbody id="bulkCoverageBody"></tbody></table></div>
     <div class="coverage-footer"><button id="cancelBulkCoverageBtn" type="button" class="secondary">Cancel</button><button id="applyBulkCoverageBtn" type="button" class="primary"><i data-lucide="check"></i>Apply to all stores</button></div>
@@ -77,6 +79,7 @@
   <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="vendor/xlsx/xlsx.full.min.js"></script>
   <script src="app.js"></script>
+  <script src="schedule-import.js"></script>
   <script src="workspace-ui.js"></script>
 </body>
 </html>
