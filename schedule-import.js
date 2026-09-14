@@ -33,7 +33,7 @@
       const visits = dates.map((date) => ({ date, person: '' }));
       let repCount = 0;
       for (const dataRow of rows.filter((item) => item.y > row.y)) {
-        if (/Walmart|Director Name|\d{1,2}\/\d{1,2}\/\d{4}/i.test(dataRow.text)) break;
+        if (/#\s*\d{3,5}|Walmart|Director Name|\d{1,2}\/\d{1,2}\/\d{4}/i.test(dataRow.text)) break;
         const id = dataRow.words.find((w) => w.bbox.x0 >= reps[1].bbox.x0 - 12 && w.bbox.x0 < starts[0] && /^\d{4,8}$/.test(w.text));
         if (!id) continue;
         const name = dataRow.words.filter((w) => w.bbox.x0 >= reps[0].bbox.x0 - 12 && w.bbox.x0 < reps[1].bbox.x0 - 12).map((w) => w.text).join(' ').trim();
@@ -47,10 +47,21 @@
       }
       if (!repCount) throw new Error('No representative rows were readable. Include names, rep IDs, and all seven days.');
       results.push({ storeNumber, visits });
+      storeNumber = '';
     }
     if (!results.length) throw new Error('No weekly schedule found. Include the store number, date headings, names, and hours.');
     return results;
   }
   root.parseScheduleImageWords = parseSchedule;
+  root.mergeScheduleImports = function (schedules) {
+    const unique = new Map();
+    for (const schedule of schedules) {
+      const previous = unique.get(schedule.storeNumber);
+      const signature = (item) => JSON.stringify(item.visits.map(v => [v.date, v.person.toLowerCase().split(',').map(n => n.trim()).sort()]));
+      if (previous && signature(previous) !== signature(schedule)) throw new Error(`Conflicting coverage for store #${schedule.storeNumber}. Upload its complete schedule only once.`);
+      unique.set(schedule.storeNumber, schedule);
+    }
+    return [...unique.values()];
+  };
   if (typeof module !== 'undefined') module.exports = parseSchedule;
 })(typeof window !== 'undefined' ? window : globalThis);

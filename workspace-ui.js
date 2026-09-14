@@ -116,8 +116,9 @@
       status.textContent = 'Reading schedule...';
       worker = await Tesseract.createWorker('eng', 1, getOcrAssetPaths());
       await worker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
-      const schedules = [];
+      const recognized = [];
       for (const file of files) {
+        status.textContent = `Reading image ${files.indexOf(file) + 1} of ${files.length}: ${file.name || 'Pasted screenshot'}`;
         const source = await loadImage(file);
         const canvas = document.createElement('canvas');
         const scale = Math.min(4, Math.max(2, 4000 / source.width));
@@ -134,17 +135,29 @@
         const headings = await worker.recognize(canvas);
         const storeWords = headings.data.words.filter((word) => /^#\d{3,5}$/.test(word.text));
         for (const word of storeWords) {
+          const crop = document.createElement('canvas');
+          crop.width = (word.bbox.x1 - word.bbox.x0) * 2 + 40;
+          crop.height = (word.bbox.y1 - word.bbox.y0) * 2 + 40;
+          const ctx = crop.getContext('2d');
+          ctx.fillStyle = 'white'; ctx.fillRect(0, 0, crop.width, crop.height);
+          ctx.drawImage(canvas, word.bbox.x0, word.bbox.y0, word.bbox.x1 - word.bbox.x0, word.bbox.y1 - word.bbox.y0, 20, 20, crop.width - 40, crop.height - 40);
+          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '#0123456789' });
+          const number = (await worker.recognize(crop)).data.text.trim();
+          await worker.setParameters({ tessedit_char_whitelist: '' });
+          if (/^#\d{3,5}$/.test(number)) {
+            result.data.words = result.data.words.filter(existing => !( /^#\d{3,5}$/.test(existing.text) && Math.abs(existing.bbox.y0 - word.bbox.y0) < 20));
+            word.text = number;
+          }
           if (!result.data.words.some((existing) => existing.text === word.text && Math.abs(existing.bbox.y0 - word.bbox.y0) < 20)) result.data.words.push(word);
         }
-        schedules.push(...parseScheduleImageWords(result.data.words));
+        try { recognized.push(...parseScheduleImageWords(result.data.words)); }
+        catch (error) { throw new Error(`${file.name || 'Pasted screenshot'}: ${error.message}`); }
       }
+      const schedules = mergeScheduleImports(recognized);
       const start = schedules[0].visits[0].date;
       const end = schedules[0].visits[6].date;
-      const seen = new Set();
       for (const schedule of schedules) {
         if (schedule.visits[0].date !== start) throw new Error('Upload schedules from the same week together.');
-        if (seen.has(schedule.storeNumber)) throw new Error(`Store #${schedule.storeNumber} appears more than once. Upload one schedule per store.`);
-        seen.add(schedule.storeNumber);
         if (!coverageDraft.some((store) => String(Number(store.storeNumber)) === schedule.storeNumber)) throw new Error(`Store #${schedule.storeNumber} is not in Settings. Add it before importing.`);
       }
       coverageStart.value = start;
@@ -154,7 +167,7 @@
         return schedule ? { ...store, visits: schedule.visits } : store;
       });
       renderCoverage();
-      status.textContent = `${schedules.length} schedule(s) loaded for review: ${schedules.map((s) => '#' + s.storeNumber).join(', ')}. Check names and dates, then Apply to all stores to save. Other stores retain their weekday coverage.`;
+      status.textContent = `${files.length} images read; ${schedules.length} stores loaded for review: ${schedules.map((s) => '#' + s.storeNumber).join(', ')}. ${recognized.length - schedules.length} repeated schedules skipped. Check coverage, then Apply to all stores to save.`;
     } catch (error) {
       status.textContent = `Schedule not imported: ${error.message || String(error)}`;
     } finally {

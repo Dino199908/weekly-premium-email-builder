@@ -25,3 +25,7 @@ assert.throws(() => parse(words.filter(w => !w.text.startsWith('#'))), /Store nu
 assert.throws(() => parse(words.map(w => w.text === '8 hrs' ? { ...w, text: 'blurred' } : w)), /Unreadable hours/);
 assert.throws(() => parse(words.filter(w => !w.text.includes('9/19/2026'))), /No weekly schedule/);
 console.log('SCHEDULE_IMPORT_OK');
+assert.equal(globalThis.mergeScheduleImports([result, structuredClone(result)]).length, 1);
+const conflict = structuredClone(result);
+conflict.visits[0].person = 'Different rep';
+assert.throws(() => globalThis.mergeScheduleImports([result, conflict]), /Conflicting coverage/);
