@@ -1,6 +1,6 @@
 # Weekly Premium Email Builder
 
-Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.39`.
+Open `index.html` in a browser, or run it as a Windows desktop app. Current app build: `1.0.40`.
 
 Use `dist/Weekly Premium Email Builder Latest.exe` as the stable app shortcut. Each new build replaces that file so you do not need to chase versioned filenames.
 
@@ -43,6 +43,7 @@ The finished files will be created in `dist`.
 
 ## What it does
 
+- Edits weekly coverage for every store in one table, repeats each store's representatives on the same weekdays, and applies new dates to all stores at once.
 - Provides searchable store navigation and dedicated Overview, Reports, Email, History, and Settings views.
 - Keeps all saved stores and contacts between updates.
 - Separates rich email and plain-text previews, with Outlook and export actions alongside the draft.

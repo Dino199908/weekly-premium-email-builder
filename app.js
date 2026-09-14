@@ -1778,6 +1778,31 @@ function shouldAutoFillVisitDates(store) {
   return Boolean(dates.length) && (!visits.length || visits.every((visit) => !visit.date));
 }
 
+function reusableWeeklyVisits(store, start, end) {
+  const dates = datesBetween(start, end);
+  const visits = store.visits || [];
+  const occurrences = new Map();
+  return dates.map((date) => {
+    const weekday = parseDateInput(date).getDay();
+    const occurrence = occurrences.get(weekday) || 0;
+    occurrences.set(weekday, occurrence + 1);
+    const matching = visits.filter((visit) => visit.date && parseDateInput(visit.date)?.getDay() === weekday);
+    const exact = visits.find((visit) => visit.date === date);
+    return { date, person: (exact || matching[occurrence] || matching[0])?.person || "" };
+  });
+}
+
+function applyWeeklyCoverage(stores, schedules, start, end) {
+  const dates = datesBetween(start, end);
+  if (!dates.length || dates.length > 14) throw new Error("Choose a date range of 1 to 14 days.");
+  return stores.map((store) => {
+    const schedule = schedules.find((item) => item.id === store.id);
+    if (!schedule) return store;
+    return { ...store, weekStart: start, weekEnd: end,
+      visits: reusableWeeklyVisits(schedule, start, end), polishedEmail: "" };
+  });
+}
+
 function nextVisitDate(store) {
   const dates = datesBetween(store.weekStart, store.weekEnd);
   if (!dates.length) return "";

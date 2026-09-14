@@ -125,6 +125,19 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+const coverageStores = [
+  { ...structuredClone(store), id: "coverage-a", visits: [{ date: "2026-09-14", person: "Henry" }, { date: "2026-09-15", person: "" }], polishedEmail: "Old schedule" },
+  { ...structuredClone(store), id: "coverage-b", visits: [{ date: "2026-09-14", person: "Shane" }] }
+];
+const coverageResult = context.applyWeeklyCoverage(coverageStores, coverageStores, "2026-09-20", "2026-09-26");
+assert.equal(coverageResult[0].visits[1].person, "Henry", "keep Monday coverage when week starts Sunday");
+assert.equal(coverageResult[1].visits[1].person, "Shane", "keep each store's own representative");
+assert.equal(coverageResult[0].visits[2].person, "", "preserve open coverage");
+assert.equal(coverageResult[0].polishedEmail, "", "clear stale drafted schedules");
+assert.equal(coverageResult[0].metrics, coverageStores[0].metrics);
+assert.equal(coverageStores[0].visits[0].date, "2026-09-14", "do not change source until applied");
+assert.equal(context.applyWeeklyCoverage(coverageResult, coverageResult, "2026-09-27", "2026-10-03")[0].visits[1].person, "Henry");
+assert.throws(() => context.applyWeeklyCoverage(coverageStores, coverageStores, "2026-09-20", "2026-10-20"));
 const annualDraft = { ...structuredClone(store), importantNotes: "Sales are up compared with last year. Focus on customer handoffs.", polishedEmail: "Upcoming Visits\nSales are up year-over-year.\nLast month: 25 activations." };
 annualDraft.metrics.push({ name: "Post PSPD YOY", mtd: -50, goal: 10, format: "percent" });
 for (const text of [context.buildEmail(annualDraft), context.buildPolishedEmail(annualDraft), context.buildRichEmailHtml(annualDraft), context.emailDraftText(annualDraft)]) {

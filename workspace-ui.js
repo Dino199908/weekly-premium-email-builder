@@ -100,5 +100,69 @@
     }).observe(document.getElementById(id), { childList: true, subtree: true });
   });
   showView(localStorage.getItem(viewKey) || "overview");
+  const coverageDialog = document.querySelector("#bulkCoverageDialog");
+  const coverageStart = document.querySelector("#bulkWeekStart");
+  const coverageEnd = document.querySelector("#bulkWeekEnd");
+  const coverageApply = document.querySelector("#applyBulkCoverageBtn");
+  let coverageDraft = [];
+  function renderCoverage() {
+    const dates = datesBetween(coverageStart.value, coverageEnd.value);
+    const valid = dates.length > 0 && dates.length <= 14;
+    coverageApply.disabled = !valid;
+    document.querySelector("#bulkCoverageStatus").textContent = valid
+      ? `${coverageDraft.length} stores | ${formatWeekRange(coverageStart.value, coverageEnd.value)}`
+      : "Choose a date range of 1 to 14 days.";
+    document.querySelector("#bulkCoverageHead").innerHTML = "";
+    document.querySelector("#bulkCoverageBody").innerHTML = "";
+    if (!valid) return;
+    coverageDraft = coverageDraft.map((store) => ({ ...store, visits: reusableWeeklyVisits(store, coverageStart.value, coverageEnd.value) }));
+    document.querySelector("#bulkCoverageHead").innerHTML = `<tr><th scope="col">Store</th>${dates.map((date) => `<th scope="col">${escapeHtml(parseDateInput(date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }))}</th>`).join("")}</tr>`;
+    const body = document.querySelector("#bulkCoverageBody");
+    coverageDraft.forEach((store) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<th scope="row">${escapeHtml(store.storeName || "Store")}<small>${escapeHtml(store.storeNumber || "")}</small></th>`;
+      store.visits.forEach((visit) => {
+        const cell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = visit.person;
+        input.placeholder = "Open coverage";
+        input.setAttribute("aria-label", `${store.storeName} ${visit.date} representative`);
+        input.addEventListener("input", () => { visit.person = input.value; });
+        cell.appendChild(input);
+        row.appendChild(cell);
+      });
+      body.appendChild(row);
+    });
+  }
+  function setCoverageWeek(start) {
+    coverageStart.value = start;
+    coverageEnd.value = addDaysToInput(start, 6);
+    renderCoverage();
+  }
+  document.querySelector("#bulkCoverageBtn").addEventListener("click", () => {
+    coverageDraft = structuredClone(state.stores);
+    coverageStart.value = state.settings.coverageWeekStart || toDateInputValue(startOfCurrentWeek());
+    coverageEnd.value = state.settings.coverageWeekEnd || addDaysToInput(coverageStart.value, 6);
+    renderCoverage();
+    coverageDialog.showModal();
+  });
+  [coverageStart, coverageEnd].forEach((input) => input.addEventListener("change", renderCoverage));
+  document.querySelector("#bulkThisWeekBtn").addEventListener("click", () => setCoverageWeek(toDateInputValue(startOfCurrentWeek())));
+  document.querySelector("#bulkNextWeekBtn").addEventListener("click", () => {
+    if (!parseDateInput(coverageStart.value) || !parseDateInput(coverageEnd.value)) return;
+    coverageStart.value = addDaysToInput(coverageStart.value, 7);
+    coverageEnd.value = addDaysToInput(coverageEnd.value, 7);
+    renderCoverage();
+  });
+  ["closeBulkCoverageBtn", "cancelBulkCoverageBtn"].forEach((id) => document.getElementById(id).addEventListener("click", () => coverageDialog.close()));
+  coverageApply.addEventListener("click", () => {
+    state.stores = applyWeeklyCoverage(state.stores, coverageDraft, coverageStart.value, coverageEnd.value);
+    state.settings.coverageWeekStart = coverageStart.value;
+    state.settings.coverageWeekEnd = coverageEnd.value;
+    saveAndRender();
+    coverageDialog.close();
+    elements.statusText.textContent = `Weekly coverage updated for ${state.stores.length} stores.`;
+  });
   refreshWorkspace();
 })();
