@@ -2665,9 +2665,10 @@ function getOcrAssetPaths() {
 
 async function prepareImageForOcr(file) {
   const image = await loadImage(file);
-  const scale = Math.min(Math.max(Math.ceil(4200 / image.width), 3), 6);
+  const detectedColumns = detectReportColumns(image);
+  const scale = detectedColumns.length === 17 ? 6 : Math.min(Math.max(Math.ceil(4200 / image.width), 3), 6);
   const canvas = document.createElement("canvas");
-  canvas.reportColumns = detectReportColumns(image).map((x) => x * scale);
+  canvas.reportColumns = detectedColumns.map((x) => x * scale);
   canvas.width = Math.round(image.width * scale);
   canvas.height = Math.round(image.height * scale);
 
@@ -2677,6 +2678,16 @@ async function prepareImageForOcr(file) {
   context.fillStyle = "white";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  if (canvas.reportColumns.length === 17) {
+    canvas.cleanCanvas = document.createElement('canvas');
+    canvas.cleanCanvas.width = canvas.width;
+    canvas.cleanCanvas.height = canvas.height;
+    const cleanContext = canvas.cleanCanvas.getContext('2d');
+    cleanContext.imageSmoothingEnabled = true;
+    cleanContext.imageSmoothingQuality = 'high';
+    cleanContext.drawImage(image, 0, 0, canvas.width, canvas.height);
+  }
 
   const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
   for (let index = 0; index < pixels.data.length; index += 4) {
@@ -2696,7 +2707,7 @@ async function prepareImageForOcr(file) {
     pixels.data[index + 2] = boosted;
   }
   context.putImageData(pixels, 0, 0);
-  if ([10, 20, 22].includes(canvas.reportColumns.length)) {
+  if ([10, 17, 20, 22].includes(canvas.reportColumns.length)) {
     context.fillStyle = "white";
     context.fillRect(canvas.reportColumns[1], 0, canvas.reportColumns[2] - canvas.reportColumns[1], canvas.height);
   }
@@ -2727,8 +2738,17 @@ function detectReportColumns(image) {
   return columns;
 }
 
+function gridMetricKeys(columns) {
+  if (columns?.length === 17) return ['postpspd', 'apppspd', 'preactspspd', 'preunitspspd', 'accpspd', 'addalinerate', 'portrate', 'postacts', 'apps', 'byodacts', 'upgradepspd', 'preacts', 'preactrate', 'storecount'];
+  return reportMetricKeys.slice(0, (columns?.length || 3) - 3).map(([key]) => key);
+}
+
+function gridRecordMetrics(record) {
+  return performanceMetricsFromRecord(record).filter(metric => metric.name !== 'Device Protection' || record.totalprotectrate !== undefined);
+}
+
 function readGridReport(words, columns) {
-  if (!Array.isArray(words) || ![10, 20, 22].includes(columns?.length)) return null;
+  if (!Array.isArray(words) || ![10, 17, 20, 22].includes(columns?.length)) return null;
   const centerX = (word) => (word.bbox.x0 + word.bbox.x1) / 2;
   const centerY = (word) => (word.bbox.y0 + word.bbox.y1) / 2;
   const rows = words.filter((word) => centerX(word) < columns[1] && /^\d{3,6}$/.test(word.text.trim()));
@@ -2737,14 +2757,14 @@ function readGridReport(words, columns) {
   for (const row of rows) {
     const record = { storenumber: row.text.trim() };
     const rowWords = words.filter((word) => Math.abs(centerY(word) - centerY(row)) < Math.max(10, (row.bbox.y1 - row.bbox.y0) * 0.8));
-    reportMetricKeys.slice(0, columns.length - 3).forEach(([key], index) => {
+    gridMetricKeys(columns).forEach((key, index) => {
       const text = rowWords.filter((word) => centerX(word) >= columns[index + 2] && centerX(word) < columns[index + 3])
         .sort((a, b) => centerX(a) - centerX(b)).map((word) => word.text).join("").replace(/,/g, "");
       if (/^-?\$?\d+(?:\.\d+)?%?$/.test(text)) record[key] = text;
     });
-    if (!["postpspd", "preactspspd", "preunitspspd", "accpspd", "totalprotectrate"].every((key) => record[key] !== undefined)) continue;
+    if (!["postpspd", "preactspspd", "preunitspspd", "accpspd", ...(columns.length === 17 ? ['postacts'] : ['totalprotectrate'])].every((key) => record[key] !== undefined)) continue;
     if (columns.length >= 20 && record.postacts === undefined) continue;
-    stores.push(normalizeStore({ storeNumber: record.storenumber, metrics: performanceMetricsFromRecord(record), visits: [] }));
+    stores.push(normalizeStore({ storeNumber: record.storenumber, metrics: gridRecordMetrics(record), visits: [] }));
   }
   if (!stores.length) throw new Error("The table was detected, but its numbers were not readable. Please import the Excel report.");
   return { stores };
@@ -2752,13 +2772,14 @@ function readGridReport(words, columns) {
 
 async function readGridCells(worker, image, words) {
   const columns = image.reportColumns;
-  if (![10, 20, 22].includes(columns?.length) || !words) return null;
+  if (![10, 17, 20, 22].includes(columns?.length) || !words) return null;
   const rows = words.filter((word) => (word.bbox.x0 + word.bbox.x1) / 2 < columns[1] && /^\d{3,6}$/.test(word.text.trim()));
   if (rows.length < 2) return null;
   const center = (word) => (word.bbox.y0 + word.bbox.y1) / 2;
   rows.sort((a, b) => center(a) - center(b));
   const spacing = (center(rows.at(-1)) - center(rows[0])) / (rows.length - 1);
-  const indices = [columns.length >= 20 ? 12 : 0, 2, 3, 4, 6];
+  const keys = gridMetricKeys(columns);
+  const indices = columns.length === 17 ? [7, 2, 3, 4] : [columns.length >= 20 ? 12 : 0, 2, 3, 4, 6];
   const stores = [];
   await worker.setParameters({ tessedit_pageseg_mode: "7", tessedit_char_whitelist: "0123456789.$%,-" });
   for (const row of rows) {
@@ -2766,22 +2787,65 @@ async function readGridCells(worker, image, words) {
     for (const index of indices) {
       const left = Math.ceil(columns[index + 2] + 4);
       const top = Math.max(0, Math.floor(center(row) - spacing * 0.42));
-      const result = await worker.recognize(image, { rectangle: {
+      const rectangle = {
         left, top, width: Math.floor(columns[index + 3] - left - 4),
         height: Math.min(Math.floor(spacing * 0.84), image.height - top)
-      } });
-      const text = result.data.text.trim().replace(/\s|,/g, "").replace(/^\./, "0.");
-      if (/^\$?\d+(?:\.\d{1,2})?%?$/.test(text)) record[reportMetricKeys[index][0]] = text;
+      };
+      let result;
+      if (image.cleanCanvas) {
+        const cell = document.createElement('canvas');
+        const width = Math.min(rectangle.width, 240);
+        cell.width = width + 40;
+        cell.height = rectangle.height + 40;
+        const ctx = cell.getContext('2d');
+        ctx.fillStyle = 'white'; ctx.fillRect(0, 0, cell.width, cell.height);
+        ctx.drawImage(image.cleanCanvas, left + rectangle.width - width, top, width, rectangle.height, 20, 20, width, rectangle.height);
+        const pixels = ctx.getImageData(20, 20, width, rectangle.height);
+        const colors = new Map();
+        for (let p = 0; p < pixels.data.length; p += 4) {
+          const key = `${pixels.data[p]},${pixels.data[p + 1]},${pixels.data[p + 2]}`;
+          colors.set(key, (colors.get(key) || 0) + 1);
+        }
+        const background = [...colors].sort((a, b) => b[1] - a[1])[0][0].split(',').map(Number);
+        for (let p = 0; p < pixels.data.length; p += 4) {
+          const contrast = Math.max(...background.map((value, channel) => Math.abs(value - pixels.data[p + channel])));
+          const value = Math.max(0, 255 - contrast * 5);
+          pixels.data[p] = pixels.data[p + 1] = pixels.data[p + 2] = value;
+        }
+        ctx.putImageData(pixels, 20, 20);
+        await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
+        result = await worker.recognize(cell);
+        if (!/^\s*\$?\d+(?:\.\d{1,2})?\s*$/.test(result.data.text)) {
+          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.$' });
+          result = await worker.recognize(cell);
+        }
+        if (!result.data.text.trim()) {
+          ctx.drawImage(image.cleanCanvas, left + rectangle.width - width, top, width, rectangle.height, 20, 20, width, rectangle.height);
+          const retry = ctx.getImageData(20, 20, width, rectangle.height);
+          for (let p = 0; p < retry.data.length; p += 4) {
+            const contrast = Math.max(...background.map((value, channel) => Math.abs(value - retry.data[p + channel])));
+            const value = Math.max(0, 255 - contrast * 3);
+            retry.data[p] = retry.data[p + 1] = retry.data[p + 2] = value;
+          }
+          ctx.putImageData(retry, 20, 20);
+          await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
+          result = await worker.recognize(cell);
+        }
+      } else result = await worker.recognize(image, { rectangle });
+      let text = result.data.text.trim().replace(/\s|,/g, "").replace(/^\./, "0.");
+      // These report columns always display two decimal places; OCR can lose the dot.
+      if (image.cleanCanvas && ['preactspspd', 'preunitspspd'].includes(keys[index]) && /^\d{3,4}$/.test(text)) text = `${text.slice(0, -2)}.${text.slice(-2)}`;
+      if (/^\$?\d+(?:\.\d{1,2})?%?$/.test(text)) record[keys[index]] = text;
     }
-    const valid = indices.every((index) => record[reportMetricKeys[index][0]] !== undefined) &&
-      parseMetricNumber(record.totalprotectrate) <= 100 &&
+    const valid = indices.every((index) => record[keys[index]] !== undefined) &&
+      (record.totalprotectrate === undefined || parseMetricNumber(record.totalprotectrate) <= 100) &&
       ["preactspspd", "preunitspspd"].every((key) => parseMetricNumber(record[key]) <= 25);
-    if (valid) stores.push(normalizeStore({ storeNumber: record.storenumber, visits: [], metrics: performanceMetricsFromRecord(record) }));
+    if (valid) stores.push(normalizeStore({ storeNumber: record.storenumber, visits: [], metrics: gridRecordMetrics(record) }));
     elements.ocrStatus.textContent = `Checking store ${record.storenumber} (${stores.length} read).`;
   }
   if (!stores.length) throw new Error("The table was found but its numbers could not be verified. Please import the Excel report.");
   const skipped = rows.filter((row) => !stores.some((store) => store.storeNumber === row.text.trim())).map((row) => row.text.trim());
-  return { stores, importWarnings: skipped.length ? [`Could not verify stores ${skipped.join(", ")}. Their saved numbers were kept; import Excel or review them manually.`] : [] };
+  return { stores, importWarnings: [...(columns.length === 17 ? ['Device Protection is not included in this report and was omitted from imported metrics. PSPD totals use the Reporting days setting; verify it against the report date.'] : []), ...(skipped.length ? [`Could not verify stores ${skipped.join(", ")}. Their saved numbers were kept; import Excel or review them manually.`] : [])] };
 }
 
 function loadImage(file) {

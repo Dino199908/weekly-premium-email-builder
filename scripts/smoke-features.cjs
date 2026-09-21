@@ -125,6 +125,11 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+assert.equal(context.gridMetricKeys(Array(17))[7], 'postacts');
+assert.equal(context.gridMetricKeys(Array(17))[12], 'preactrate');
+const reducedGridMetrics = context.gridRecordMetrics({ postacts: '62', preactspspd: '3.86', preunitspspd: '4.57', accpspd: '$244', preactrate: '84.38%' });
+assert.equal(reducedGridMetrics.find(m => m.name === 'Postpaid Activation').mtd, 62);
+assert.equal(reducedGridMetrics.some(m => m.name === 'Device Protection'), false);
 const coverageStores = [
   { ...structuredClone(store), id: "coverage-a", visits: [{ date: "2026-09-14", person: "Henry" }, { date: "2026-09-15", person: "" }], polishedEmail: "Old schedule" },
   { ...structuredClone(store), id: "coverage-b", visits: [{ date: "2026-09-14", person: "Shane" }] }
