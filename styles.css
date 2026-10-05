@@ -307,6 +307,8 @@ summary::-webkit-details-marker { display: none; }
 .postpaid-simple .workspace { background: #f8fbfa; }
 .postpaid-simple .view { background: transparent; }
 .simple-results { padding: 28px 0 40px; }
+.simple-staffing { display: grid; gap: 10px; margin: 0 0 24px; }
+.simple-staffing textarea { min-height: 112px; width: 100%; resize: vertical; }
 .simple-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; border-top: 1px solid #dae5e0; border-bottom: 1px solid #dae5e0; padding: 36px 0; margin: 24px 0; }
 .simple-figures label { display: flex; flex-direction: column; gap: 18px; font-size: 16px; }
 .simple-figures input { font-size: 36px; font-weight: 600; height: 80px; width: 100%; min-width: 0; border-radius: 6px; background: white; }

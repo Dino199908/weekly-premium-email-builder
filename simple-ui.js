@@ -1,12 +1,26 @@
 (() => {
   const countInput = document.querySelector('#simplePostpaid');
   const yoyInput = document.querySelector('#simpleYoy');
+  const staffingInput = document.querySelector('#staffingNotes');
+  const staffingLabel = staffingInput.closest('label');
+  staffingLabel.classList.add('simple-staffing');
+  document.querySelector('.simple-actions').before(staffingLabel);
+  staffingInput.addEventListener('input', event => {
+    event.stopPropagation();
+    const store = getActiveStore();
+    if (!store) return;
+    store.staffingNotes = staffingInput.value;
+    store.polishedEmail = '';
+    saveWithoutRender();
+    renderPreview(); renderChecklist(); renderPreSendReview();
+  });
   function refreshSimple() {
     const store = getActiveStore();
     if (!store) return;
     const { count, yoy } = postpaidFigures(store);
     if (document.activeElement !== countInput) countInput.value = count ?? '';
     if (document.activeElement !== yoyInput) yoyInput.value = yoy ?? '';
+    if (document.activeElement !== staffingInput) staffingInput.value = store.staffingNotes || '';
     const trend = document.querySelector('#simpleTrend');
     trend.textContent = yoy === null ? 'No comparison yet' : yoy === 0 ? 'Flat year over year' : `${yoy > 0 ? 'Up' : 'Down'} ${Math.abs(yoy)}% year over year`;
     trend.dataset.direction = yoy === null || yoy === 0 ? 'flat' : yoy > 0 ? 'up' : 'down';

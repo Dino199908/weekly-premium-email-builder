@@ -1429,7 +1429,8 @@ function buildPostpaidEmail(store) {
   const total = count === null ? 'The month-to-date postpaid count is awaiting confirmation.' : `${location} has recorded ${count.toLocaleString('en-US')} postpaid activation${count === 1 ? '' : 's'} month to date${period}.`;
   const comparison = yoy === null ? 'A year-over-year comparison is not available in the current report.' : yoy === 0 ? 'Postpaid performance is flat year over year.' : `Postpaid performance is ${yoy > 0 ? 'up' : 'down'} ${Math.abs(yoy).toLocaleString('en-US', { maximumFractionDigits: 2 })}% year over year.`;
   const focus = yoy === null || yoy === 0 ? 'Our focus remains on connecting customers with the right postpaid options.' : yoy > 0 ? 'We will keep building on this progress and making the most of each customer opportunity.' : 'Our focus is on improving postpaid results and closing the gap.';
-  return `Good morning ${store.contactName || 'there'},\n\nHere is your weekly Premium postpaid update.\n\n${total}\n\n${comparison} ${focus}\n\nThank you for your continued partnership. Please reach out with any questions or concerns.`;
+  const staffing = String(store.staffingNotes || '').trim();
+  return `Good morning ${store.contactName || 'there'},\n\nHere is your weekly Premium postpaid update.\n\n${total}\n\n${comparison} ${focus}${staffing ? `\n\nStaffing\n${staffing}` : ''}\n\nThank you for your continued partnership. Please reach out with any questions or concerns.`;
 }
 
 function hasAnnualComparison(text) {
