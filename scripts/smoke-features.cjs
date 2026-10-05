@@ -125,6 +125,18 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+vm.runInContext("state.settings.emailMode = 'simple'", context);
+const simpleStore = { storeName: 'London', storeNumber: '1113', contactName: 'Cathy', metrics: [{ name: 'Postpaid Activation', mtd: 22 }, { name: 'Postpaid YOY', mtd: -12.5 }] };
+assert.match(context.buildEmail(simpleStore), /down 12.5% year over year/);
+assert.doesNotMatch(context.buildEmail(simpleStore), /Weekly Visits|Prepaid|Accessory|Month Goals/);
+simpleStore.metrics[1].mtd = 0;
+assert.match(context.buildEmail(simpleStore), /flat year over year/);
+simpleStore.metrics[1].mtd = 77.14;
+assert.match(context.emailDraftText(simpleStore), /up 77.14% year over year/);
+simpleStore.metrics[1].mtd = '';
+assert.match(context.buildEmail(simpleStore), /not available/);
+assert.equal(context.performanceMetricsFromRecord({ postacts: '22', postpspdyoy: '-12.5%' })[1].mtd, -12.5);
+vm.runInContext("delete state.settings.emailMode", context);
 assert.equal(context.gridMetricKeys(Array(16))[12], 'postacts');
 assert.equal(context.gridMetricKeys(Array(16))[6], 'totalprotectrate');
 assert.equal(context.gridMetricKeys(Array(17))[7], 'postacts');

@@ -297,3 +297,27 @@ summary::-webkit-details-marker { display: none; }
   .readiness-board { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+/* Postpaid-only workspace; historical data remains stored. */
+.postpaid-simple #view-overview > :not(.simple-results),
+.postpaid-simple #tab-history, .postpaid-simple #view-history,
+.postpaid-simple .email-controls > .disclosure:first-of-type,
+.postpaid-simple #emailChecklist, .postpaid-simple #polishAllBtn,
+.postpaid-simple .settings-layout .wide { display: none !important; }
+.postpaid-simple .app-header { background: #fff; border-bottom: 1px solid #dce5e3; }
+.postpaid-simple .workspace { background: #f8fbfa; }
+.postpaid-simple .view { background: transparent; }
+.simple-results { padding: 28px 0 40px; }
+.simple-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; border-top: 1px solid #dae5e0; border-bottom: 1px solid #dae5e0; padding: 36px 0; margin: 24px 0; }
+.simple-figures label { display: flex; flex-direction: column; gap: 18px; font-size: 16px; }
+.simple-figures input { font-size: 36px; font-weight: 600; height: 80px; width: 100%; min-width: 0; border-radius: 6px; background: white; }
+.simple-figures input::placeholder { font-size: 20px; font-weight: 400; }
+.simple-figures small { color: #65736d; font-size: 12px; }
+.simple-rate { display: flex; align-items: center; gap: 12px; }
+.simple-rate > span { font-size: 26px; color: #65736d; }
+#simpleTrend[data-direction="up"] { color: #167046; }
+#simpleTrend[data-direction="down"] { color: #b04742; }
+.simple-actions { display: flex; gap: 12px; }
+.postpaid-simple #emailPreview { padding: 28px; }
+.postpaid-simple #emailPreview p { margin: 0 0 18px; }
+.postpaid-simple .review-columns, .postpaid-simple .review-row { display: grid; grid-template-columns: 90px minmax(160px, 1fr) 120px 120px; }
+@media (max-width: 650px) { .simple-figures { grid-template-columns: 1fr; gap: 28px; padding: 24px 0; } .simple-results { padding-top: 12px; } }

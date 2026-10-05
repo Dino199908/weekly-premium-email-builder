@@ -556,6 +556,7 @@ function renderChecklist() {
 }
 
 function buildChecklist(store) {
+  if (simplePostpaidMode()) return simplePostpaidChecks(store);
   const metricNames = new Set((store.metrics || []).map((metric) => metric.name));
   return [
     { ok: Boolean(store.managerEmail), label: "Manager email added" },
@@ -568,6 +569,7 @@ function buildChecklist(store) {
 }
 
 function buildSafetyChecks(store) {
+  if (simplePostpaidMode()) return simplePostpaidChecks(store);
   const metricNames = new Set((store.metrics || []).map((metric) => metric.name));
   const metricsReadable = metricDefaults.every((metric) => metricNames.has(metric.name)) &&
     (store.metrics || []).every((metric) => metric.mtd !== "" && Number.isFinite(Number(metric.mtd))) &&
@@ -1398,6 +1400,38 @@ function shiftDateToWeek(value, sourceStart, targetStart) {
   return toDateInputValue(target);
 }
 
+function simplePostpaidMode() {
+  return !IS_FEATURE_TEST || state.settings?.emailMode === 'simple';
+}
+
+function postpaidFigures(store) {
+  const value = (name) => {
+    const raw = store?.metrics?.find(metric => metric.name === name)?.mtd;
+    return raw !== '' && raw !== null && raw !== undefined && Number.isFinite(Number(raw)) ? Number(raw) : null;
+  };
+  return { count: value('Postpaid Activation'), yoy: value('Postpaid YOY') };
+}
+
+function simplePostpaidChecks(store) {
+  const { count, yoy } = postpaidFigures(store);
+  return [
+    { id: 'email', ok: isEmailAddress(store.managerEmail), label: 'Manager email', detail: store.managerEmail || 'Add the manager email in Settings' },
+    { id: 'metrics', ok: count !== null && count >= 0 && Number.isInteger(count), label: 'Postpaid activations', detail: count === null ? 'Enter a count' : String(count) },
+    { id: 'yoy', ok: yoy !== null && yoy >= -100, label: 'Postpaid YOY', detail: yoy === null ? 'Not provided in the current report' : `${yoy > 0 ? '+' : ''}${yoy}%` }
+  ];
+}
+
+function buildPostpaidEmail(store) {
+  if (!store) return '';
+  const { count, yoy } = postpaidFigures(store);
+  const location = `${store.storeName || 'your store'}${store.storeNumber ? ` (#${store.storeNumber})` : ''}`;
+  const period = store.currentReport?.asOf ? ` through ${formatDate(store.currentReport.asOf)}` : '';
+  const total = count === null ? 'The month-to-date postpaid count is awaiting confirmation.' : `${location} has recorded ${count.toLocaleString('en-US')} postpaid activation${count === 1 ? '' : 's'} month to date${period}.`;
+  const comparison = yoy === null ? 'A year-over-year comparison is not available in the current report.' : yoy === 0 ? 'Postpaid performance is flat year over year.' : `Postpaid performance is ${yoy > 0 ? 'up' : 'down'} ${Math.abs(yoy).toLocaleString('en-US', { maximumFractionDigits: 2 })}% year over year.`;
+  const focus = yoy === null || yoy === 0 ? 'Our focus remains on connecting customers with the right postpaid options.' : yoy > 0 ? 'We will keep building on this progress and making the most of each customer opportunity.' : 'Our focus is on improving postpaid results and closing the gap.';
+  return `Good morning ${store.contactName || 'there'},\n\nHere is your weekly Premium postpaid update.\n\n${total}\n\n${comparison} ${focus}\n\nThank you for your continued partnership. Please reach out with any questions or concerns.`;
+}
+
 function hasAnnualComparison(text) {
   return /\b(?:last\s+year|previous\s+year|prior\s+year|year[\s-]+over[\s-]+year|yoy)\b/i.test(String(text || ""));
 }
@@ -1422,10 +1456,12 @@ function emailContentStore(store) {
 }
 
 function emailDraftText(store) {
+  if (simplePostpaidMode()) return buildPostpaidEmail(store);
   return cleanEmailWording(store?.polishedEmail || buildEmail(store));
 }
 
 function buildEmail(store) {
+  if (simplePostpaidMode()) return buildPostpaidEmail(store);
   if (!store) return "";
   store = emailContentStore(store);
 
@@ -1489,6 +1525,7 @@ ${goalLines || "No month goals entered yet."}`;
 }
 
 function buildPolishedEmail(store) {
+  if (simplePostpaidMode()) return buildPostpaidEmail(store);
   if (!store) return "";
   store = emailContentStore(store);
 
@@ -1539,6 +1576,7 @@ Please pass this update along to your management team as needed. As always, reac
 }
 
 function buildRichEmailHtml(store) {
+  if (simplePostpaidMode()) return `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#25362f">${buildPostpaidEmail(store).split('\n\n').map(paragraph => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
   if (!store) return "";
   store = emailContentStore(store);
   const insight = buildCoachingInsight(store);
@@ -2781,10 +2819,15 @@ async function readGridCells(worker, image, words) {
   rows.sort((a, b) => center(a) - center(b));
   const spacing = (center(rows.at(-1)) - center(rows[0])) / (rows.length - 1);
   const keys = gridMetricKeys(columns);
-  const indices = columns.length === 19 ? [10, 0, 1, 2, 4] : columns.length === 17 ? [7, 2, 3, 4] : [keys.includes('postacts') ? keys.indexOf('postacts') : 0, 2, 3, 4, 6];
+  const indices = simplePostpaidMode() ? [keys.includes('postacts') ? keys.indexOf('postacts') : keys.indexOf('postpspd'), keys.indexOf('postpspdyoy')].filter(index => index >= 0) : columns.length === 19 ? [10, 0, 1, 2, 4] : columns.length === 17 ? [7, 2, 3, 4] : [keys.includes('postacts') ? keys.indexOf('postacts') : 0, 2, 3, 4, 6];
+  if (simplePostpaidMode()) {
+    const yoyIndex = indices.indexOf(keys.indexOf('postpspdyoy'));
+    if (yoyIndex >= 0) indices.splice(yoyIndex, 1);
+  }
   if (columns.length === 16) indices.push(0);
   const stores = [];
   const estimates = [];
+  if (simplePostpaidMode()) estimates.push('Postpaid counts imported. YOY is left blank because screenshot OCR can miss minus signs. Enter the signed YOY percentage or import Excel/CSV before sending.');
   await worker.setParameters({ tessedit_pageseg_mode: "7", tessedit_char_whitelist: "0123456789.$%,-" });
   for (const row of rows) {
     const record = { storenumber: row.text.trim() };
@@ -2798,7 +2841,7 @@ async function readGridCells(worker, image, words) {
       let result;
       if (image.cleanCanvas) {
         const cell = document.createElement('canvas');
-        const width = Math.min(rectangle.width, 240);
+        const width = keys[index] === 'postpspdyoy' ? rectangle.width : Math.min(rectangle.width, 240);
         cell.width = width + 40;
         cell.height = rectangle.height + 40;
         const ctx = cell.getContext('2d');
@@ -2819,8 +2862,8 @@ async function readGridCells(worker, image, words) {
         ctx.putImageData(pixels, 20, 20);
         await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
         result = await worker.recognize(cell);
-        if (!/^\s*\$?\d+(?:\.\d{1,2})?%?\s*$/.test(result.data.text)) {
-          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.$%' });
+        if (!/^\s*-?\$?\d+(?:\.\d{1,2})?%?\s*$/.test(result.data.text)) {
+          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '-0123456789.$%' });
           result = await worker.recognize(cell);
         }
         if (!result.data.text.trim()) {
@@ -2835,9 +2878,9 @@ async function readGridCells(worker, image, words) {
           await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
           result = await worker.recognize(cell);
         }
-        if (!/^\s*\$?\d+(?:\.\d{1,2})?%?\s*$/.test(result.data.text)) {
+        if (!/^\s*-?\$?\d+(?:\.\d{1,2})?%?\s*$/.test(result.data.text)) {
           ctx.drawImage(image.cleanCanvas, left + rectangle.width - width, top, width, rectangle.height, 20, 20, width, rectangle.height);
-          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789.$%' });
+          await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '-0123456789.$%' });
           result = await worker.recognize(cell);
         }
         if (!/^\s*\$?\d+(?:\.\d{1,2})?%?\s*$/.test(result.data.text) && keys[index] === 'postacts') {
@@ -2854,7 +2897,8 @@ async function readGridCells(worker, image, words) {
       // These report columns always display two decimal places; OCR can lose the dot.
       if (image.cleanCanvas && ['preactspspd', 'preunitspspd'].includes(keys[index]) && /^\d{3,4}$/.test(text)) text = `${text.slice(0, -2)}.${text.slice(-2)}`;
       if (image.cleanCanvas && keys[index] === 'totalprotectrate' && /^\d{3,5}%$/.test(text)) text = `${text.slice(0, -3)}.${text.slice(-3)}`;
-      if (/^\$?\d+(?:\.\d{1,2})?%?$/.test(text)) record[keys[index]] = text;
+      if (keys[index] === 'postpspdyoy' && !/^-?\d+\.\d{2}%$/.test(text)) continue;
+      if (/^-?\$?\d+(?:\.\d{1,2})?%?$/.test(text)) record[keys[index]] = text;
     }
     if (columns.length === 16 && record.postacts === undefined && /^\d+\.\d{2}$/.test(record.postpspd || '')) {
       record.postacts = String(Math.round(Number(record.postpspd) * mtdPaceMultiplier()));
@@ -2862,7 +2906,8 @@ async function readGridCells(worker, image, words) {
     }
     const valid = indices.filter(index => keys[index] !== 'postpspd' || !keys.includes('postacts')).every((index) => record[keys[index]] !== undefined) &&
       (record.totalprotectrate === undefined || parseMetricNumber(record.totalprotectrate) <= 100) &&
-      ["preactspspd", "preunitspspd"].every((key) => parseMetricNumber(record[key]) <= 25);
+      ["preactspspd", "preunitspspd"].every((key) => parseMetricNumber(record[key]) <= 25) &&
+      (!simplePostpaidMode() || record.postpspdyoy === undefined || parseMetricNumber(record.postpspdyoy) >= -100);
     if (valid) stores.push(normalizeStore({ storeNumber: record.storenumber, visits: [], metrics: gridRecordMetrics(record) }));
     elements.ocrStatus.textContent = `Checking store ${record.storenumber} (${stores.length} read).`;
   }
@@ -2896,7 +2941,7 @@ async function normalizeWorkbookImport(file) {
   const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
   const sheetName = workbook.SheetNames.find((name) => name.toLowerCase() === "pivot") || workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: !simplePostpaidMode() });
   const cleanRows = rows
     .map((row) => row.map((cell) => cell === null || cell === undefined ? "" : String(cell).trim()))
     .filter((row) => row.some(Boolean));
@@ -3196,6 +3241,14 @@ function parseOcrStoreLine(line) {
 }
 
 function performanceMetricsFromRecord(record) {
+  if (simplePostpaidMode()) {
+    const postpaid = firstRecordValue(record, ['postacts', 'postpaidactivation', 'postpspd']);
+    const yoy = firstRecordValue(record, ['postpspdyoy', 'postpaidyoy']);
+    return [
+      { ...metricDefaults[0], mtd: postpaid === '' ? '' : metricMtdFromRecord(record, 'Postpaid Activation', ['postacts']) },
+      { name: 'Postpaid YOY', mtd: yoy === '' ? '' : parseMetricNumber(yoy), goal: 0, format: 'percent' }
+    ];
+  }
   return emailMetricColumns.map(({ defaultIndex, sourceKeys }) => {
     const metric = metricDefaults[defaultIndex];
     return {

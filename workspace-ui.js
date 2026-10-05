@@ -1,5 +1,5 @@
 (() => {
-  const tabs = [...document.querySelectorAll("[data-view]")];
+  const tabs = [...document.querySelectorAll("[data-view]")].filter(tab => !simplePostpaidMode() || tab.dataset.view !== 'history');
   const workspace = document.querySelector(".workspace");
   const search = document.querySelector("#storeSearch");
   const sidebar = document.querySelector(".sidebar");

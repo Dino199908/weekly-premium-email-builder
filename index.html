@@ -7,7 +7,7 @@
   <link rel="icon" href="assets/icon.ico">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="postpaid-simple">
   <header class="app-header">
     <div class="brand"><img src="assets/icon.ico" width="32" height="32" alt=""><div><strong>Premium</strong><span>Partnership workspace</span></div></div>
     <div class="header-context"><span class="status-dot"></span>Weekly updates<span class="header-divider"></span><span id="portfolioCount"></span></div>
@@ -33,6 +33,7 @@
       </nav>
       <form id="storeForm" autocomplete="off">
         <section id="view-overview" class="view" role="tabpanel" aria-labelledby="tab-overview">
+          <section class="simple-results"><div class="section-heading"><h2>Postpaid update</h2><span id="simpleAsOf" class="muted"></span></div><div class="simple-figures"><label><span>Postpaid activations</span><input id="simplePostpaid" type="number" min="0" step="1" placeholder="Not entered"><small>MONTH TO DATE</small></label><label><span>Postpaid year over year</span><div class="simple-rate"><input id="simpleYoy" type="number" min="-100" step="0.01" placeholder="Not available"><span>%</span></div><small id="simpleTrend">No comparison yet</small></label></div><div class="simple-actions"><button type="button" class="primary" data-go="email"><i data-lucide="mail"></i>Review email</button><button type="button" class="secondary" data-go="reports"><i data-lucide="upload"></i>Import report</button></div></section>
           <div class="section-heading"><h2>Month at a glance</h2><span id="reportPeriodLabel" class="muted"></span></div>
           <div id="performanceSummary" class="performance-summary"></div>
           <section class="page-section"><div class="section-heading"><div><h2>Performance &amp; goals</h2><span class="section-caption">MONTH TO DATE</span></div><button id="addMetricBtn" type="button" class="text-button"><i data-lucide="plus"></i>Add metric</button></div><div class="table-scroll"><div class="metric-columns" aria-hidden="true"><span>Metric</span><span>Actual</span><span>Goal</span><span>Remaining</span><span>Format</span><span>Progress</span><span></span></div><div id="metricsList" class="metric-table" aria-label="Metrics table"></div></div></section>
@@ -81,5 +82,6 @@
   <script src="app.js"></script>
   <script src="schedule-import.js"></script>
   <script src="workspace-ui.js"></script>
+  <script src="simple-ui.js"></script>
 </body>
 </html>
