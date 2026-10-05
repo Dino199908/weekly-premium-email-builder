@@ -125,6 +125,8 @@ const context = vm.createContext({
 vm.runInContext(source, context, { filename: "app.js" });
 
 const active = context.getActiveStore();
+assert.equal(context.gridMetricKeys(Array(16))[12], 'postacts');
+assert.equal(context.gridMetricKeys(Array(16))[6], 'totalprotectrate');
 assert.equal(context.gridMetricKeys(Array(17))[7], 'postacts');
 assert.equal(context.gridMetricKeys(Array(17))[12], 'preactrate');
 const reducedGridMetrics = context.gridRecordMetrics({ postacts: '62', preactspspd: '3.86', preunitspspd: '4.57', accpspd: '$244', preactrate: '84.38%' });
