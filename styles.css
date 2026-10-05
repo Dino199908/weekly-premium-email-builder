@@ -298,7 +298,7 @@ summary::-webkit-details-marker { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
 /* Postpaid-only workspace; historical data remains stored. */
-.postpaid-simple #view-overview > :not(.simple-results),
+.postpaid-simple #view-overview > :not(.simple-results):not(.coverage-section),
 .postpaid-simple #tab-history, .postpaid-simple #view-history,
 .postpaid-simple .email-controls > .disclosure:first-of-type,
 .postpaid-simple #emailChecklist, .postpaid-simple #polishAllBtn,

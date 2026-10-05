@@ -135,6 +135,10 @@ assert.match(context.buildRichEmailHtml(simpleStore), /Staffing<br>Two reps sche
 simpleStore.staffingNotes = '   ';
 assert.doesNotMatch(context.buildEmail(simpleStore), /Staffing/);
 assert.doesNotMatch(context.buildEmail(simpleStore), /Weekly Visits|Prepaid|Accessory|Month Goals/);
+simpleStore.visits = [{ date: '2026-10-05', person: 'Henry Stewart' }, { date: '2026-10-06', person: '' }];
+assert.match(context.emailDraftText(simpleStore), /Weekly Visits/);
+assert.match(context.emailDraftText(simpleStore), /Henry Stewart/);
+assert.match(context.buildRichEmailHtml(simpleStore), /Open coverage/);
 simpleStore.metrics[1].mtd = 0;
 assert.match(context.buildEmail(simpleStore), /flat year over year/);
 simpleStore.metrics[1].mtd = 77.14;

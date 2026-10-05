@@ -1430,7 +1430,8 @@ function buildPostpaidEmail(store) {
   const comparison = yoy === null ? 'A year-over-year comparison is not available in the current report.' : yoy === 0 ? 'Postpaid performance is flat year over year.' : `Postpaid performance is ${yoy > 0 ? 'up' : 'down'} ${Math.abs(yoy).toLocaleString('en-US', { maximumFractionDigits: 2 })}% year over year.`;
   const focus = yoy === null || yoy === 0 ? 'Our focus remains on connecting customers with the right postpaid options.' : yoy > 0 ? 'We will keep building on this progress and making the most of each customer opportunity.' : 'Our focus is on improving postpaid results and closing the gap.';
   const staffing = String(store.staffingNotes || '').trim();
-  return `Good morning ${store.contactName || 'there'},\n\nHere is your weekly Premium postpaid update.\n\n${total}\n\n${comparison} ${focus}${staffing ? `\n\nStaffing\n${staffing}` : ''}\n\nThank you for your continued partnership. Please reach out with any questions or concerns.`;
+  const visits = (store.visits || []).filter(visit => visit.date).map(visit => `${formatDate(visit.date)} - ${visit.person || 'Open coverage'}`).join('\n');
+  return `Good morning ${store.contactName || 'there'},\n\nHere is your weekly Premium partnership update.\n\n${total}\n\n${comparison} ${focus}${visits ? `\n\nWeekly Visits\n${visits}` : ''}${staffing ? `\n\nStaffing\n${staffing}` : ''}\n\nThank you for your continued partnership. Please reach out with any questions or concerns.`;
 }
 
 function hasAnnualComparison(text) {

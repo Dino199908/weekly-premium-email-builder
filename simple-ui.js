@@ -1,6 +1,7 @@
 (() => {
   const countInput = document.querySelector('#simplePostpaid');
   const yoyInput = document.querySelector('#simpleYoy');
+  document.querySelector('.simple-results').after(document.querySelector('.coverage-section'));
   const staffingInput = document.querySelector('#staffingNotes');
   const staffingLabel = staffingInput.closest('label');
   staffingLabel.classList.add('simple-staffing');
